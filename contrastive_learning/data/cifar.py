@@ -12,8 +12,7 @@ def get_unsupervised(batch_size=128, val_split=0.2):
     x_test, y_test = _normalize(x_test, y_test)
 
     num_samples = len(x_train)
-    train_samples = (1-val_split)*num_samples
-    val_samples = (1-val_split)*num_samples
+    train_samples = int((1-val_split)*num_samples)
 
     x_train, x_val = x_train[:train_samples], x_train[train_samples:]
 
@@ -38,8 +37,11 @@ def get_supervised(batch_size=128, val_split=0.2):
     train_samples = (1-val_split)*num_samples
     val_samples = (1-val_split)*num_samples
 
-    x_val, y_val = x_train.skip(train_samples).take(val_samples), y_train.skip(train_samples).take(val_samples)
-    x_train, y_train = x_train.take(train_samples), y_train.take(train_samples)
+    x_train, x_val = x_train[:train_samples], x_train[train_samples:]
+    y_train, y_val = y_train[:train_samples], y_train[train_samples:]
+
+    # x_val, y_val = x_train.skip(train_samples).take(val_samples), y_train.skip(train_samples).take(val_samples)
+    # x_train, y_train = x_train.take(train_samples), y_train.take(train_samples)
 
     train_dataset = tf.data.Dataset.zip(tf.data.Dataset.from_tensor_slices(x_train),
                                        tf.data.Dataset.from_tensor_slices(y_train))

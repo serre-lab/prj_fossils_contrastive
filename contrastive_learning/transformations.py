@@ -44,12 +44,13 @@ def random_blur(kernel_size=10, sigma_range=(1.0, 2.0)):
 
     return blur
 
+
 def random_distorsion(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1):
     """TODO: DOC """
     def transform(images):
-        images = tf.images.random_brightness(images, max_delta=brightness)
-        images = tf.images.random_contrast(images, lower=1.0-contrast, upper=1+contrast)
-        images = tf.images.random_saturation(images, lower=1.0-saturation, upper=1.0+saturation)
+        images = tf.image.random_brightness(images, max_delta=brightness)
+        images = tf.image.random_contrast(images, lower=1.0-contrast, upper=1+contrast)
+        images = tf.image.random_saturation(images, lower=1.0-saturation, upper=1.0+saturation)
         images = tf.image.random_hue(images, max_delta=hue)
     return transform
 

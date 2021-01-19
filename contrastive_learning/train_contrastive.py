@@ -1,12 +1,9 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 
-def train_contrastive(projector, train_dataset, val_dataset, test_dataset,
-                      loss_fn, optimizer,  epochs=100,
-                      verbose=True, froze_backbone=True):
-    
-    # Jacob : get project model
-    projector = 
+def train_contrastive(train_dataset, val_dataset, test_dataset,
+                      projector, loss_fn, optimizer,
+                      epochs=100, verbose=True, froze_backbone=True):
 
     if verbose:
         projector.summary()
