@@ -11,14 +11,14 @@ def  resize(size):
     return transform
 
 augmentation_function = compose_transformations([
-    #pad(24, 0.0),
-    #random_jitter(6),
+    pad(24, 0.0),
+    random_jitter(2),
     random_blur(sigma_range=[0.8, 2.0]),
     #random_jitter(12),
     random_scale([0.95, 0.99]),
+    resize(224),
     #random_jitter(12),
     #random_distorsion(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    resize(224)
     # TODO : clip to ensure [0, 255] ?
 ])
 
