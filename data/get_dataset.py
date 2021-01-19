@@ -3,8 +3,7 @@ import tensorflow as tf
 from ..transformations import (pad, random_blur, random_distorsion, 
                                random_flip, random_jitter, random_scale,
                                compose_transformations)
-from .cifar import get_data
-import os 
+import data.cifar as cif
 
 def  resize(size):
     def transform(images):
@@ -28,10 +27,18 @@ def symmetric_batch(batch_x):
     #tf.random.seed(sseed)
     return tf.concat([augmentation_function(batch_x), augmentation_function(batch_x)], axis=0)
 
-train_dataset, val_dataset, test_dataset = get_data(batch_size=128, val_split=0.2)
+def get_dataset(dataset='cifar', batch_size=128, val_split=0.2):
+    # base dataset
+    if dataset == 'cifar':
+        train, val, test = cifar.get_unsupervised(batch_size=batch_size//2, val_split=val_split)
+    elif dataset == 'leaves':
+        raise NotImplementedError('Leaves dataset is not implemented yet')
 
-train_dataset = train_dataset.map(symmetric_batch)
-val_dataset = train_dataset.map(val_dataset)
-test_dataset = train_dataset.map(test_dataset)
+    # apply symmetric batch mechanism
+    train = train.map(symmetric_batch)
+    test = test.map(symmetric_batch)
+    val = val.map(symmetric_batch)
+
+    return train, val, test
 
 

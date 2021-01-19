@@ -15,13 +15,10 @@ def get_unsupervised(batch_size=128, val_split=0.2):
     train_samples = (1-val_split)*num_samples
     val_samples = (1-val_split)*num_samples
 
-    x_val = x_train.skip(train_samples).take(val_samples)
-    x_train = x_train.take(train_samples)
+    x_train, x_val = x_train[:train_samples], x_train[train_samples:]
 
     train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
-
     val_dataset = tf.data.Dataset.from_tensor_slices(x_val)
-
     test_dataset = tf.data.Dataset.from_tensor_slices(x_test)
 
     train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
