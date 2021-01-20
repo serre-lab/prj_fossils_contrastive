@@ -9,11 +9,13 @@ def train_contrastive(train_dataset, val_dataset, test_dataset,
         projector.summary()
     
     # define the training and testing step
+    train_accuracy = tf.metrics.Accuracy()
     @tf.function
     def train_step(batch_x):
         with tf.GradientTape() as tape:
             _, projection = projector(batch_x, training=True)
-            loss = loss_fn(projection)
+            loss, logits, labels = loss_fn(projection)
+            train_accuracy.update_state(tf.argmax(logits, -1), tf.argmax(labels, -1))
         grads = tape.gradient(loss, projector.trainable_weights)
         optimizer.apply_gradients(zip(grads, projector.trainable_weights))
 
@@ -32,7 +34,7 @@ def train_contrastive(train_dataset, val_dataset, test_dataset,
         for batch_x in train_dataset:
             batch_loss = train_step(batch_x)
             if verbose:
-                tf.print(f"[Epoch {epoch_i}] [Train] {batch_loss}")
+                tf.print(f"[Epoch {epoch_i}] [Train] {batch_loss} [Accuracy] {train_accuracy.result()}")
         # test iterations
         for batch_x in test_dataset:
             batch_loss = test_step(batch_x)

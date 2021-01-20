@@ -28,8 +28,8 @@ def get_contrastive_loss(temperature=1.0):
                                                         labels, tf.concat([logits_ba, logits_bb], 1))
         loss = tf.reduce_mean(loss_a + loss_b)
 
-        #return loss, logits_ab, labels
-        return loss
+        return loss, logits_ab, labels
+        #return loss
     
     return contrastive_loss
 
