@@ -1,5 +1,6 @@
 import tensorflow as tf
-
+import matplotlib 
+matplotlib.use('Agg')
 from contrastive_learning.data.get_dataset import get_dataset
 from contrastive_learning.losses import get_contrastive_loss
 from contrastive_learning.train_contrastive import train_contrastive
@@ -27,6 +28,8 @@ if __name__ == "__main__":
         plt.imshow(temp[i])
         plt.subplot(1, 2, 2)
         plt.imshow(temp[i+batch_size//2])
+        plt.savefig('test.png')
         plt.show()
+        
 
     train_contrastive(train, val, test,projector, loss, tf.keras.optimizers.Adam(), epochs=100, verbose=True, froze_backbone=True)
