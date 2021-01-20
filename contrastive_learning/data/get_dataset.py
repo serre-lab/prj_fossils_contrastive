@@ -1,8 +1,8 @@
 import tensorflow as tf
 
-from contrastive_learning.transformations import (pad, random_blur, random_distorsion, 
-                               random_flip, random_jitter, random_scale,
-                               compose_transformations)
+#from contrastive_learning.transformations import (pad, random_blur, random_distorsion, 
+#                               random_flip, random_jitter, random_scale,
+#                               compose_transformations)
 import contrastive_learning.data.cifar as cifar
 
 def augmentations(x, crop_size=22, brightness=0.2, contrast=0.3, saturation=0.3, hue=0.2):
