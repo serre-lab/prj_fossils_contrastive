@@ -23,13 +23,8 @@ augmentation_function = compose_transformations([
 ])
 
 def symmetric_batch(batch_x):
-    #sseed = int.from_bytes(os.urandom(4), byteorder='little')
-    #tf.random.seed(sseed)
-    
-    import pdb;pdb.set_trace()
-    da = augmentation_function(batch_x)
-    tf.print(tf.shape(da))
-    return tf.concat([augmentation_function(batch_x), augmentation_function(batch_x)], axis=0)
+    batch_x = tf.concat([batch_x, batch_x], axis=0)
+    return augmentation_function(batch_x)
 
 def get_dataset(dataset='cifar', batch_size=128, val_split=0.2):
     # base dataset
