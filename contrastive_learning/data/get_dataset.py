@@ -5,31 +5,28 @@ from contrastive_learning.transformations import (pad, random_blur, random_disto
                                compose_transformations)
 import contrastive_learning.data.cifar as cifar
 
-def  resize(size):
-    def transform(images):
-        return tf.image.resize(images, (size, size))
-    return transform
+def augmentations(x, crop_size=22, brightness=0.2, contrast=0.3, saturation=0.3, hue=0.2):
+    x = tf.cast(x, tf.float32)
+    x = tf.image.random_crop(x, (tf.shape(x)[0], 25, 25, 3))
+    x = tf.image.random_brightness(x, max_delta=brightness)
+    x = tf.image.random_contrast(x, lower=1.0-contrast, upper=1+contrast)
+    x = tf.image.random_saturation(x, lower=1.0-saturation, upper=1.0+saturation)
+    x = tf.image.random_hue(x, max_delta=hue)
+    x = tf.image.resize(x, (224, 224))
+    x = tf.clip_by_value(x, 0, 255)
+    #x = tf.keras.applications.resnet_v2.preprocess_input(x)
+    return x
 
-augmentation_function = compose_transformations([
-    pad(24, 0.0),
-    random_jitter(2),
-    random_blur(sigma_range=[0.8, 2.0]),
-    #random_jitter(12),
-    random_scale([0.95, 0.99]),
-    resize(224),
-    #random_jitter(12),
-    #random_distorsion(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    # TODO : clip to ensure [0, 255] ?
-])
 
 def symmetric_batch(batch_x):
-    batch_x = tf.concat([batch_x, batch_x], axis=0)
-    return augmentation_function(batch_x)
+    return tf.concat([augmentations(batch_x), augmentations(batch_x)], axis=0)
 
-def get_dataset(dataset='cifar', batch_size=128, val_split=0.2):
+def get_dataset(dataset='cifar_unsup', batch_size=128, val_split=0.2):
     # base dataset
-    if dataset == 'cifar':
+    if dataset == 'cifar_unsup':
         train, val, test = cifar.get_unsupervised(batch_size=batch_size//2, val_split=val_split)
+    elif dataset == 'cifar_sup':
+        train, val, test = cifar.get_supervised(batch_size=batch_size//2, val_split=val_split)
     elif dataset == 'leaves':
         raise NotImplementedError('Leaves dataset is not implemented yet')
     else: 
@@ -41,5 +38,3 @@ def get_dataset(dataset='cifar', batch_size=128, val_split=0.2):
     val = val.map(symmetric_batch)
 
     return train, val, test
-
-

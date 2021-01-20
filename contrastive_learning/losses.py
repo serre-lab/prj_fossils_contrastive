@@ -32,3 +32,10 @@ def get_contrastive_loss(temperature=1.0):
         return loss
     
     return contrastive_loss
+
+def get_supervised_loss(labels, logits):
+    """Compute mean supervised loss over local batch."""
+    losses = tf.keras.losses.CategoricalCrossentropy(
+      from_logits=True, reduction=tf.keras.losses.Reduction.NONE)(labels,
+                                                                  logits)
+    return tf.reduce_mean(losses)
