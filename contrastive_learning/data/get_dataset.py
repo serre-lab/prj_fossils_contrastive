@@ -5,7 +5,7 @@ import tensorflow as tf
 #                               compose_transformations)
 import contrastive_learning.data.cifar as cifar
 
-def augmentations(x, crop_size=22, brightness=0.2, contrast=0.3, saturation=0.3, hue=0.2):
+def augmentations(x, crop_size=22, brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2):
     x = tf.cast(x, tf.float32)
     x = tf.image.random_crop(x, (tf.shape(x)[0], 25, 25, 3))
     x = tf.image.random_brightness(x, max_delta=brightness)
@@ -14,7 +14,7 @@ def augmentations(x, crop_size=22, brightness=0.2, contrast=0.3, saturation=0.3,
     x = tf.image.random_hue(x, max_delta=hue)
     x = tf.image.resize(x, (224, 224))
     x = tf.clip_by_value(x, 0, 255)
-    #x = tf.keras.applications.resnet_v2.preprocess_input(x)
+    x = tf.keras.applications.resnet_v2.preprocess_input(x)
     return x
 
 

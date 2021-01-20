@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.datasets import cifar10
 
 def _normalize(x, y):
-    return x.astype('float32') / 255.0, tf.one_hot(y[:,0], 10).numpy()
+    return x.astype('float32'), tf.one_hot(y[:,0], 10).numpy()
 
 
 def get_unsupervised(batch_size=128, val_split=0.2):
