@@ -5,9 +5,10 @@ from contrastive_learning.data.get_dataset import get_dataset
 from contrastive_learning.losses import get_contrastive_loss,get_supervised_loss
 from contrastive_learning.train_contrastive import train_contrastive
 from contrastive_learning.models.resnet import ResNetSimCLR
+from neptunecontrib.monitoring.keras import NeptuneMonitor
 
 def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
-                      contrastive_model, epochs=100, verbose=True, froze_backbone=True):
+                      contrastive_model, epochs=100, verbose=True, froze_backbone=True,neptune=None):
     
     # re-configure the model (remove the projection head)
     encoder = tf.keras.Model(contrastive_model.input, contrastive_model.outputs[0])
@@ -27,13 +28,18 @@ def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
                                                                    monitor='val_accuracy',
                                                                    mode='max',
                                                                    save_best_only=True)
+    neptune_callback = NeptuneMonitor()
 
-    model.fit(train_dataset, validation=val_dataset, epochs=epochs, callbacks=[model_checkpoint_callback], verbose=verbose)
+    model.fit(train_dataset, validation=val_dataset, epochs=epochs, 
+              callbacks=[model_checkpoint_callback, netptune_callback], verbose=verbose)
     model.load_weights(checkpoint_filepath)
 
     # get performance on test set
     test_accuracy = model.evaluate(test_dataset)[1]
-    print(test_accuracy)
+    if verbose:
+        print(f"Finetune test accuracy {test_accuracy}")
+    
+    neptune.log('finetune_test_accuracy', test_accuracy)
 
     return test_accuracy
 
