@@ -12,8 +12,13 @@ def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
     
     # re-configure the model (remove the projection head)
     encoder = tf.keras.Model(contrastive_model.input, contrastive_model.outputs[0])
+
+    if froze_backbone:
+        for l in encoder.layer:
+            l.trainable = False
+
     # add a classification head
-    predictions = Dense(nb_classes, activation="softmax")(encoder)
+    predictions = Dense(nb_classes, activation="softmax")(encoder.output)
     model = tf.keras.Model(encoder.input, predictions)
 
     if verbose:
@@ -30,8 +35,8 @@ def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
                                                                    save_best_only=True)
     neptune_callback = NeptuneMonitor()
 
-    model.fit(train_dataset, validation=val_dataset, epochs=epochs, 
-              callbacks=[model_checkpoint_callback, netptune_callback], verbose=verbose)
+    model.fit(train_dataset, validation_data=val_dataset, epochs=epochs, 
+              callbacks=[model_checkpoint_callback, neptune_callback], verbose=verbose)
     model.load_weights(checkpoint_filepath)
 
     # get performance on test set
