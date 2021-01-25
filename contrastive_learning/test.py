@@ -8,7 +8,7 @@ from contrastive_learning.models.resnet import ResNetSimCLR
 from contrastive_learning.train_finetune import finetune
 import neptune
 
-neptune.init(project_qualified_name='paleo-ai',
+neptune.init(project_qualified_name='Serre-Lab/paleo-ai',
              api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vdWkubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3VpLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiOTQzMzk1YTQtZmQxNS00MGI0LTg1YWUtMTU3ZWM2ZDE3NTVjIn0=',
              )
 
