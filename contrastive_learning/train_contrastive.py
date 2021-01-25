@@ -27,7 +27,7 @@ def train_contrastive(train_dataset, val_dataset, test_dataset,
         _, projection = projector(batch_x, training=False)
         loss, logits, labels = loss_fn(projection)
         test_accuracy.update_state(tf.argmax(logits,-1),tf.argmax(labels,-1))
-        
+
         return loss
     
     # training loop

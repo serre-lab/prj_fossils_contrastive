@@ -39,15 +39,9 @@ def get_supervised(batch_size=128, val_split=0.2):
     x_train, x_val = x_train[:train_samples], x_train[train_samples:]
     y_train, y_val = y_train[:train_samples], y_train[train_samples:]
 
-    train_dataset = tf.data.Dataset.zip(tf.data.Dataset.from_tensor_slices(x_train),
-                                       tf.data.Dataset.from_tensor_slices(y_train))
-
-    val_dataset = tf.data.Dataset.zip(tf.data.Dataset.from_tensor_slices(x_val),
-                                     tf.data.Dataset.from_tensor_slices(y_val))
-
-    test_dataset = tf.data.Dataset.zip(tf.data.Dataset.from_tensor_slices(x_test),
-                                      tf.data.Dataset.from_tensor_slices(y_test))
-
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
 
     train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
     val_dataset = val_dataset.batch(batch_size)
