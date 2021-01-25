@@ -6,50 +6,36 @@ from contrastive_learning.losses import get_contrastive_loss,get_supervised_loss
 from contrastive_learning.train_contrastive import train_contrastive
 from contrastive_learning.models.resnet import ResNetSimCLR
 
-def finetune(train_dataset, val_dataset, test_dataset,
-                      projector, loss_fn, optimizer,
-                      epochs=100, verbose=True, froze_backbone=True):
+def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
+                      contrastive_model, epochs=100, verbose=True, froze_backbone=True):
+    
+    # re-configure the model (remove the projection head)
+    encoder = tf.keras.Model(contrastive_model.input, contrastive_model.outputs[0])
+    # add a classification head
+    predictions = Dense(nb_classes, activation="softmax")(encoder)
+    model = tf.keras.Model(encoder.input, predictions)
+
     if verbose:
-        projector.summary()
-    
-    # define the training and testing step
-    @tf.function
-    def train_step(batch_x):
-        with tf.GradientTape() as tape:
-            _, projection = projector(batch_x, training=True)
-            loss = loss_fn(projection)
-        grads = tape.gradient(loss, projector.trainable_weights)
-        optimizer.apply_gradients(zip(grads, projector.trainable_weights))
+        model.summary()
 
-        return loss
+    # fine-tune the model
+    model.compile(loss="categorical_crossentropy", optimizer=tf.keras.optimizers.Adam(), metrics=['accuracy'])
 
-    @tf.function
-    def test_step(batch_x):
-        _, projection = projector(batch_x, training=False)
-        loss = loss_fn(projection)
+    checkpoint_filepath = '/tmp/checkpoint'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
+                                                                   save_weights_only=True,
+                                                                   monitor='val_accuracy',
+                                                                   mode='max',
+                                                                   save_best_only=True)
 
-        return loss
-    
-    # training loop
-    for epoch_i in range(epochs):
-        # train iterations
-        for batch_x in train_dataset:
-            batch_loss = train_step(batch_x)
-            if verbose:
-                tf.print(f"[Epoch {epoch_i}] [Train] {batch_loss}")
-        # test iterations
-        for batch_x in test_dataset:
-            batch_loss = test_step(batch_x)
-            if verbose:
-                tf.print(f"[Epoch {epoch_i}] [Test] {batch_loss}")
-    
-    # validation 
-    for batch_x in val_dataset:
-        batch_loss = test_step(batch_x)
-        tf.print(f"[Epoch {epoch_i}] [Val] {batch_loss}")
+    model.fit(train_dataset, validation=val_dataset, epochs=epochs, callbacks=[model_checkpoint_callback], verbose=verbose)
+    model.load_weights(checkpoint_filepath)
 
+    # get performance on test set
+    test_accuracy = model.evaluate(test_dataset)[1]
+    print(test_accuracy)
 
-
+    return test_accuracy
 
 
 if __name__ == "__main__":

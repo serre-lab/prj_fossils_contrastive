@@ -45,3 +45,6 @@ def train_contrastive(train_dataset, val_dataset, test_dataset,
     for batch_x in val_dataset:
         batch_loss = test_step(batch_x)
         tf.print(f"[Epoch {epoch_i}] [Val] {batch_loss}")
+    
+
+    return projector
