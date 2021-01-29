@@ -23,7 +23,7 @@ def symmetric_batch(batch_x):
     return tf.concat([augmentations(batch_x), augmentations(batch_x)], axis=0)
 
 def resize_images(batch_x, width=224, height=224):
-    return tf.image.resize(x_batch, width, height)
+    return tf.image.resize(batch_x, (width, height))
 
 def get_dataset(dataset='cifar_unsup', batch_size=128, val_split=0.2):
     # base dataset
@@ -35,9 +35,9 @@ def get_dataset(dataset='cifar_unsup', batch_size=128, val_split=0.2):
         val = val.map(symmetric_batch)
     elif dataset == 'cifar_sup':
         train, val, test = cifar.get_supervised(batch_size=batch_size//2, val_split=val_split)
-        train =train.map(resize_images)  
-        val = val.map(resize_images)
-        test = test.map(resize_images)
+        train =train.map(lambda x,y : resize_images(x), y)  
+        val = val.map(lambda x,y : resize_images(x), y)
+        test = test.map(lambda x,y : resize_images(x), y)
     elif dataset == 'leaves':
         raise NotImplementedError('Leaves dataset is not implemented yet')
     else: 
