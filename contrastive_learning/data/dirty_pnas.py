@@ -2,8 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 
 NB_CLASSES = 19
-INPUT_SIZE = 128
-
+INPUT_SIZE = (128,128)
 def _clever_crop(x):
     return tf.image.resize(x, INPUT_SIZE) #Todo: Ivan & Jacob we need your clever crop
 
