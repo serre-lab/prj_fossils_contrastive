@@ -31,7 +31,7 @@ if __name__ == "__main__":
     out_dim = batch_size*2
     contrastive_model = ResNetSimCLR(input_shape,out_dim )        
 
-    #contrastive_model = train_contrastive(train, val, test,projector, loss, tf.keras.optimizers.Adam(), epochs=1, verbose=True, froze_backbone=True,neptune=neptune)
+    contrastive_model = train_contrastive(train, val, test,contrastive_model, loss, tf.keras.optimizers.Adam(), epochs=1, verbose=True, froze_backbone=True,neptune=neptune)
     
     print('Fine Tune step ')
 

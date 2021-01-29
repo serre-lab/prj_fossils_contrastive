@@ -35,15 +35,15 @@ def train_contrastive(train_dataset, val_dataset, test_dataset,
         # train iterations
         for batch_x in train_dataset:
             batch_loss, encoder = train_step(batch_x)
-            neptune.log("train_loss", batch_loss.numpy())
-            neptune.log("train_accuracy", train_accuracy.result.numpy())
+            neptune.log_metric("train_loss", batch_loss.numpy())
+            neptune.log_metric("train_accuracy", train_accuracy.result().numpy()
             if verbose:
                 tf.print(f"[Epoch {epoch_i}] [Train] {batch_loss} [Accuracy] {train_accuracy.result()}")
         # test iterations
         for batch_x in test_dataset:
             batch_loss, encoder = test_step(batch_x)
-            neptune.log("train_loss", batch_loss.numpy())
-            neptune.log("test_accuracy", test_accuracy.result.numpy())
+            neptune.log_metric("train_loss", batch_loss.numpy())
+            neptune.log_metric("test_accuracy", test_accuracy.result().numpy())
             if verbose:
                 tf.print(f"[Epoch {epoch_i}] [Test] {batch_loss}")
     

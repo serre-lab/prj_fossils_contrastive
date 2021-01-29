@@ -14,7 +14,7 @@ def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
     encoder = tf.keras.Model(contrastive_model.input, contrastive_model.outputs[0])
 
     if froze_backbone:
-        for l in encoder.layer:
+        for l in encoder.layers:
             l.trainable = False
 
     # add a classification head
