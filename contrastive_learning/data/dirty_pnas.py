@@ -13,7 +13,7 @@ def _normalize(x, y):
   y = tf.cast(y, tf.float32)
   return x, y
 
-def _remove_label(git x, y):
+def _remove_label(x, y):
     return x
 
 def _get_dataset(batch_size, supervised, path):
