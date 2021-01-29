@@ -13,7 +13,7 @@ neptune.init(project_qualified_name='Serre-Lab/paleo-ai',
              )
 
 # Create experiment
-neptune.create_experiment()
+logger= neptune.create_experiment()
 
 
 if __name__ == "__main__":
@@ -31,5 +31,5 @@ if __name__ == "__main__":
 
     train, val, test = get_dataset('cifar_sup', batch_size=batch_size)
     test_score = finetune(train, val, test, 10,
-                      contrastive_model, epochs=2, verbose=True, froze_backbone=True,neptune=neptune)
+                      contrastive_model, epochs=2, verbose=True, froze_backbone=True,neptune=logger)
     

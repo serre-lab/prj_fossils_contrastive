@@ -44,7 +44,7 @@ def finetune(train_dataset, val_dataset, test_dataset, nb_classes,
     if verbose:
         print(f"Finetune test accuracy {test_accuracy}")
     
-    neptune.log('finetune_test_accuracy', test_accuracy)
+    neptune.log_metric('finetune_test_accuracy', test_accuracy)
 
     return test_accuracy
 
