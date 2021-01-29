@@ -13,10 +13,10 @@ def _normalize(x, y):
   y = tf.cast(y, tf.float32)
   return x, y
 
-def _remove_label(x, y)
+def _remove_label(git x, y):
     return x
 
-def _get_dataset(supervised, batch_size, path):
+def _get_dataset(batch_size, supervised, path):
     ds_train = tfds.folder_dataset.ImageFolder(path).as_dataset(split='train', shuffle_files=True, as_supervised=True)
     ds_test = tfds.folder_dataset.ImageFolder(path).as_dataset(split='test', shuffle_files=True, as_supervised=True)
 
