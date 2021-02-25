@@ -231,7 +231,7 @@ def load_and_extract_pnas(threshold=100,
     return data, class_encoder
 
 
-def get_unsupervised(batch_size=128, val_split=0.2):
+def get_unsupervised(val_split=0.2):
     data, _ = load_and_extract_pnas(threshold=100,
                                     validation_split=0.2,
                                     seed=None,
@@ -245,7 +245,7 @@ def get_unsupervised(batch_size=128, val_split=0.2):
     return train_dataset, val_dataset, test_dataset
 
 
-def get_supervised(batch_size=128, val_split=0.2):
+def get_supervised(val_split=0.2):
     data, _ = load_and_extract_pnas(threshold=100,
                                     validation_split=0.2,
                                     seed=None,

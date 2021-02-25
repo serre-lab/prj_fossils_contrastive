@@ -4,6 +4,8 @@ from tensorflow.keras.datasets import cifar10
 def _normalize(x, y):
     return x.astype('float32'), tf.one_hot(y[:,0], 10).numpy()
 
+def _normalize_and_resize(x, y,width=224,height=224):
+    return tf.image.resize(x.astype('float32'),(width,height)), tf.one_hot(y[:,0], 10).numpy()
 
 def get_unsupervised(batch_size=128, val_split=0.2):
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
