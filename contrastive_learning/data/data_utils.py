@@ -103,30 +103,4 @@ def _clever_crop(img,grayscale=False):
     # img = tf.clip_by_value(img, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
     # img = img * 2 - 1
     
-    return img  tf.math.minimum(tf.shape(img)[0],tf.shape(img)[1])
-    new_img = img
-             
-    if tf.math.divide(maxside,minside) > 1.2:
-        repeating = tf.math.floor(tf.math.divide(maxside,minside))  
-        new_img = img
-        if tf.math.equal(tf.shape(img)[1],minside):
-            for i in range(int(repeating)):
-                new_img = tf.concat((new_img, img), axis=1) 
-
-        if tf.math.equal(tf.shape(img)[0],minside):
-            for i in range(int(repeating)):
-                new_img = tf.concat((new_img, img), axis=0)
-            new_img = tf.image.rot90(new_img) 
-    else:
-        new_img = img      
-    img = tf.image.resize(new_img, INPUT_SIZE)
-    if grayscale:
-        img = tf.image.rgb_to_grayscale(img)
-        img = tf.image.grayscale_to_rgb(img)
-        #img = tf.image.random_crop(img, [crop_size, crop_size, tf.shape(img)[-1]])
-        # 
-    # # Move this outside
-    # img = tf.clip_by_value(img, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
-    # img = img * 2 - 1
-    
-    return img 
+    return img  
