@@ -37,8 +37,8 @@ def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='
     urls_train, labels_train = train_df[input_col], train_df[label_col]
     urls_test, labels_test = test_df[input_col], test_df[label_col]
 
-    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, label_train)).map(load).map(_normalize)
-    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, label_test)).map(load).map(_normalize)
+    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load).map(_normalize)
+    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load).map(_normalize)
 
     if not supervised:
         ds_train = ds_train.map(_remove_label)
