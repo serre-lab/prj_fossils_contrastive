@@ -49,11 +49,11 @@ def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='
 
     return ds_train, ds_test
 
-def get_unsupervised(batch_size, path="dataset"):
-    return _get_dataset(batch_size, supervised=False, path=path)
+def get_unsupervised(batch_size):
+    return _get_dataset(batch_size, supervised=False)
 
-def get_supervised(batch_size, path="dataset"):
-    return _get_dataset(batch_size, supervised=True, path=path)
+def get_supervised(batch_size):
+    return _get_dataset(batch_size, supervised=True)
 
 
 if __name__ == '__main__':
