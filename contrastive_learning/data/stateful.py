@@ -97,3 +97,34 @@ def log_json_artifact(path, run=None, artifact_type='json_artifact', metadata=No
     
     
     
+
+    
+    
+    
+    
+    
+    
+    
+    
+# import jsonpickle
+# def test_weights_encode_decode():
+
+#     from pyleaves.utils import set_tf_config
+#     set_tf_config(num_gpus=1)
+    
+#     import tensorflow as tf
+    
+#     best_model = tf.keras.applications.ResNet50V2(input_shape=input_shape, include_top=False, weights=weights)
+
+#     best_weights = best_model.get_weights()
+    
+#     frozen = jsonpickle.encode(best_weights)
+#     thawed = jsonpickle.decode(frozen)
+    
+#     layer_num = 0
+#     for x, x_thawed in zip(best_weights, thawed):
+#         if np.all(x==x_thawed):
+#             layer_num += 1
+#     assert layer_num == len(best_weights)
+    
+    

@@ -57,11 +57,13 @@ def get_supervised(batch_size, path="dataset"):
 
 
 if __name__ == '__main__':
-    train, test = get_unsupervised(32)
-    train, test = get_supervised(32)
+    train, test = get_unsupervised(10)
+    train, test = get_supervised(10)
 
     # test to unpack first batch and plot image
-    first_batch = [b for b train.take(1).as_numpy_iterator][0]
-    batch_x, batch_y = first_batch[0], first_batch[1]
-    
+    for batch in train.take(1).as_numpy_iterator():
+        for x, y in batch:
+            plt.imshow(x)
+            plt.title(class_labels_int2str[y])
+            plt.show()
 
