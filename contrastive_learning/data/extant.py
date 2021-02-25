@@ -13,12 +13,16 @@ class_labels = sorted(set(train_df['family'].values))
 class_labels_str2int = {label:idx for idx, label in enumerate(class_labels)}
 class_labels_int2str = {idx:label for label, idx in class_labels_str2int.items()}
 
+# train_df['label'] = [class_labels_str2int[l] for l in list(train_df['family'])]
+
+
+train_df = train_df.assign(label = train_df.family.apply(lambda x: class_labels_str2int[x]))
+test_df = test_df.assign(label = test_df.family.apply(lambda x: class_labels_str2int[x]))
 NB_CLASSES = len(class_labels)
 
 def load(path, label):
     x = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
-    y = class_labels_str2int[label]
-    return x, y
+    return x, label
 
 def _normalize(x, y):
     x = _clever_crop(x) 
@@ -33,7 +37,7 @@ def _normalize(x, y):
 def _remove_label(x, y):
     return x
 
-def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='family'):
+def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='label'):
     urls_train, labels_train = train_df[input_col], train_df[label_col]
     urls_test, labels_test = test_df[input_col], test_df[label_col]
 
