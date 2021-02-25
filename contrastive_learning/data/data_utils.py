@@ -6,7 +6,7 @@ import pandas as pd
 import wandb
 import numpy as np
 from typing import Dict, Union
-
+import tensorflow as tf
 
 def class_counts(y: np.ndarray, as_dataframe: bool=False) -> Union[Dict[Union[str,int],int],pd.DataFrame]:
     counts = dict(zip(*np.unique(y, return_counts=True)))
