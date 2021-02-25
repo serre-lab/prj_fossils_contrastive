@@ -4,14 +4,12 @@ import matplotlib.pyplot as plt
 
 from contrastive_learning.data.data_utils import _clever_crop
 
-
-
 extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
 
 train_df = pd.read_csv(extant_csv_path + 'extant_family_10_train.csv')
 test_df = pd.read_csv(extant_csv_path + 'extant_family_10_test.csv')
 
-class_labels = sorted(set(data_df[label_col].values))
+class_labels = sorted(set(train_df['family'].values))
 class_labels_str2int = {label:idx for idx, label in enumerate(class_labels)}
 class_labels_int2str = {idx:label for label, idx in class_labels_str2int.items()}
 
