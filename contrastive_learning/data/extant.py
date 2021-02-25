@@ -1,5 +1,7 @@
 import pandas as pd
 import tensorflow as tf
+import matplotlib 
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from contrastive_learning.data.data_utils import _clever_crop
@@ -66,8 +68,9 @@ if __name__ == '__main__':
 
     # test to unpack first batch and plot image
     for batch in train.take(1).as_numpy_iterator():
-        for x, y in batch:
+        print("batch ? ", batch)
+        for x, y in batch[0]:
             plt.imshow(x)
             plt.title(class_labels_int2str[y])
-            plt.show()
+            plt.save('test_image.jpg')
 
