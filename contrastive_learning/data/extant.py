@@ -1,7 +1,9 @@
 import pandas as pd
+import tensorflow as tf
+import matplotlib.pyplot as plt
 
 from data_utils import _clever_crop
-import tensorflow as tf
+
 
 
 extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
