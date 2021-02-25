@@ -93,7 +93,7 @@ def _clever_crop(img,input_size = (128,128),grayscale=False):
             new_img = tf.image.rot90(new_img) 
     else:
         new_img = img      
-    img = tf.image.resize(new_img, INPUT_SIZE)
+    img = tf.image.resize(new_img, input_size)
     if grayscale:
         img = tf.image.rgb_to_grayscale(img)
         img = tf.image.grayscale_to_rgb(img)
