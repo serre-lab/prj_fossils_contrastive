@@ -75,7 +75,7 @@ def load_dataset_from_artifact(dataset_name='Fossil', threshold=4, test_size=0.3
     artifact_uri = f'brown-serre-lab/paleoai-project/{artifact_name}'
     return load_train_test_artifact(artifact_uri=artifact_uri, run=run)
 
-def _clever_crop(img,grayscale=False):
+def _clever_crop(img,input_size = (128,128),grayscale=False):
     maxside = tf.math.maximum(tf.shape(img)[0],tf.shape(img)[1])
     minside = tf.math.minimum(tf.shape(img)[0],tf.shape(img)[1])
     new_img = img
