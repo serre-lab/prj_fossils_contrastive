@@ -2,7 +2,7 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-from data_utils import _clever_crop
+from contrastive_learning.data.data_utils import _clever_crop
 
 
 
