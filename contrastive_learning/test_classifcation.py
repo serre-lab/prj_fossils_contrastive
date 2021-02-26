@@ -11,7 +11,7 @@ nb_classes = NB_CLASSES
 # train_ds, test_ds = get_supervised(batch_size, size)
 
 
-decode_example = partial(decode_example, num_classes=nb_classes)
+decode_example = partial(decode_example, num_classes=nb_classes, target_size=(size,size))
 
 raw_image_dataset = tf.data.TFRecordDataset('/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_*.tfrecords')
 train_ds = raw_image_dataset.map(decode_example, num_parallel_calls=-1)
