@@ -107,6 +107,7 @@ if __name__ == '__main__':
         with tf.io.TFRecordWriter(record_file) as writer:
             for img, label in zip(batch[0], batch[1]):
                 img = np.array(img)
+                label = tf.argmax(label)
                 # cv2.imwrite('temp/img.jpg', img)
                 # img_string = open('temp/img.jpg', 'rb').read()
 
