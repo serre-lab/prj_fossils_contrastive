@@ -39,7 +39,7 @@ def _normalize(x, y, size):
 def _remove_label(x, y):
     return x
 
-def _get_dataset(batch_size, supervised, size, input_col='processed_path', label_col='label'):
+def _get_dataset(batch_size,  size,supervised=True, input_col='processed_path', label_col='label'):
     urls_train, labels_train = train_df[input_col], train_df[label_col]
     urls_test, labels_test = test_df[input_col], test_df[label_col]
 
@@ -58,7 +58,7 @@ def _get_dataset(batch_size, supervised, size, input_col='processed_path', label
     return ds_train, ds_test
 
 def get_unsupervised(batch_size, size):
-    return _get_dataset(batch_size, size,supervised=False, )
+    return _get_dataset(batch_size, supervised=False, )
 
 def get_supervised(batch_size, size):
     return _get_dataset(batch_size, size,supervised=True, )
