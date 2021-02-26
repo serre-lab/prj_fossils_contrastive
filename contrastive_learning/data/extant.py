@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # test to unpack first batch and plot image
     tic = time()
     for batch in iter(train):
-        print(batch.shape)
+        print(batch[0].shape,batch[1].shape)
         #breakpoint()
         #print("len ? ", len(batch))
         #print("shape ? ", batch[0].shape)
