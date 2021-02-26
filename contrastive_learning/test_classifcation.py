@@ -24,6 +24,7 @@ x = backbone.output
 x = tf.keras.layers.GlobalAveragePooling2D()(x)
 x = tf.keras.layers.Dense(200, activation="relu")(x)
 logits = tf.keras.layers.Dense(nb_classes, activation="softmax")(x)
+model = tf.keras.Model(inputs=backbone.input, outputs=logits)
 model.compile(optimizer=tf.keras.optimizers.Adam(),
               loss=tf.keras.losses.categorical_crossentropy,
               metrics=['accuracy'])
