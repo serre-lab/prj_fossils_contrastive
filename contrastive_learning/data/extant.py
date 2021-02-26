@@ -88,32 +88,32 @@ def create_tf_feature(img, label):
     return tf.train.Example(features=tf.train.Features(feature=features))
 
 if __name__ == '__main__':
-    train, test = get_unsupervised(256,128)
-    train, test = get_supervised(256,128)
+    train, test = get_unsupervised(256,256)
+    train, test = get_supervised(256,256)
     from time import time 
     # test to unpack first batch and plot image
     tic_inner = tic = time()
 
-    batch_i = 0
-    shard_i = 0
+    data_df = train.unbatch().batch(shard_size)
 
-    for batch in iter(train):
-        print(batch[0].shape,batch[1].shape)
+    for i, shard_i in enumerate(data_df):
         toc_inner = time()
         print(f'{toc_inner-tic_inner:.2f} s')
         tic_inner = time()
-
-        record_file = f'/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_{shard_i}.tfrecords'
+        record_file = f'/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_{i}.tfrecords'
         with tf.io.TFRecordWriter(record_file) as writer:
-            for img, label in zip(batch[0], batch[1]):
-                img = np.array(img)
+
+            num_samples_in_shard = batch[0].shape[0]
+
+            for j in range(num_samples_in_shard):
+                img, label = batch[0][i,...].numpy(), batch[1][i,...].numpy()
                 label = tf.argmax(label)
                 # cv2.imwrite('temp/img.jpg', img)
                 # img_string = open('temp/img.jpg', 'rb').read()
 
                 img = tf.image.encode_jpeg(img, optimize_size=True, chroma_downsampling=False)
                 tf_example = create_tf_feature(img, label)
-                writer.write(tf_example.SerializeToString())        
+                writer.write(tf_example.SerializeToString())   
         batch_i += 1
 
         if batch_i > 20:
@@ -122,6 +122,32 @@ if __name__ == '__main__':
 
     toc = time()
     print(toc-tic)
+
+    # for batch in iter(train):
+    #     print(batch[0].shape,batch[1].shape)
+    #     toc_inner = time()
+    #     print(f'{toc_inner-tic_inner:.2f} s')
+    #     tic_inner = time()
+
+    #     record_file = f'/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_{shard_i}.tfrecords'
+    #     with tf.io.TFRecordWriter(record_file) as writer:
+    #         for img, label in zip(batch[0], batch[1]):
+    #             img = np.array(img)
+    #             label = tf.argmax(label)
+    #             # cv2.imwrite('temp/img.jpg', img)
+    #             # img_string = open('temp/img.jpg', 'rb').read()
+
+    #             img = tf.image.encode_jpeg(img, optimize_size=True, chroma_downsampling=False)
+    #             tf_example = create_tf_feature(img, label)
+    #             writer.write(tf_example.SerializeToString())        
+    #     batch_i += 1
+
+    #     if batch_i > 20:
+    #         shard_i += 1
+    #         batch_i = 0
+
+    # toc = time()
+    # print(toc-tic)
     
 ##################################
     # def parse_image(self, src_filepath, label):
