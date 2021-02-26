@@ -70,15 +70,16 @@ if __name__ == '__main__':
     from time import time 
     # test to unpack first batch and plot image
     tic = time()
-    for batch in train.take(1).as_numpy_iterator():
+    for batch in iter(train):
         #breakpoint()
         #print("len ? ", len(batch))
         #print("shape ? ", batch[0].shape)
         #print("shape 1 ?", batch)
         #print("batch ? ", batch)
         for x, y in zip(batch[0],batch[1]):
-            plt.imshow(x)
-            plt.title(class_labels_int2str[y])
-            plt.save('test_image.jpg')
+            print(x.shape)
+            #plt.imshow(x)
+            #plt.title(class_labels_int2str[y])
+            #plt.save('test_image.jpg')
     toc = time()
     print(toc-tic)
