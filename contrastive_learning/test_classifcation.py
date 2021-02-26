@@ -15,7 +15,7 @@ backbone = tf.keras.applications.ResNet50V2(weights="imagenet", include_top=Fals
 x = backbone.output
 x = tf.keras.layers.GlobalAveragePooling2D()(x)
 x = tf.keras.layers.Dense(200, activation="relu")(x)
-logits = tf.keras.layers.Dense(nb_classes, activation="softmax")
+logits = tf.keras.layers.Dense(nb_classes, activation="softmax")(x)
 model = tf.keras.Model(backbone.input, logits)
 
 model.compile(optimizer=tf.keras.optimizers.Adam(),
