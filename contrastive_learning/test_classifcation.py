@@ -1,8 +1,7 @@
 import tensorflow as tf
 
 from contrastive_learning.data.extant import get_supervised
-import contrastive_learning.data.extant import NB_CLASSES
-
+from contrastive_learning.data.extant import NB_CLASSES
 
 size = 128
 batch_size = 256
