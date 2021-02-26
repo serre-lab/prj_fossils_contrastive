@@ -49,4 +49,31 @@ def get_supervised(batch_size=128, val_split=0.2):
     val_dataset = val_dataset.batch(batch_size)
     test_dataset = test_dataset.batch(batch_size)
 
-    return train_dataset, val_dataset, test_dataset
+    return train_dataset, val_dataset, test_datasetdef _clever_crop(img):
+    maxside = tf.math.maximum(tf.shape(img)[0],tf.shape(img)[1])
+    minside = tf.math.minimum(tf.shape(img)[0],tf.shape(img)[1])
+    new_img = img
+             
+    if tf.math.divide(maxside,minside) > 1.2:
+        repeating = tf.math.floor(tf.math.divide(maxside,minside))  
+        new_img = img
+        if tf.math.equal(tf.shape(img)[1],minside):
+            for i in range(int(repeating)):
+                new_img = tf.concat((new_img, img), axis=1) 
+
+        if tf.math.equal(tf.shape(img)[0],minside):
+            for i in range(int(repeating)):
+                new_img = tf.concat((new_img, img), axis=0)
+            new_img = tf.image.rot90(new_img) 
+    else:
+        new_img = img      
+    img = tf.image.resize(new_img, INPUT_SIZE)
+    if grayscale:
+        img = tf.image.rgb_to_grayscale(img)
+        img = tf.image.grayscale_to_rgb(img)
+        #img = tf.image.random_crop(img, [crop_size, crop_size, tf.shape(img)[-1]])
+        # 
+    img = tf.clip_by_value(img, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
+    img = img * 2 - 1
+    
+    return img 

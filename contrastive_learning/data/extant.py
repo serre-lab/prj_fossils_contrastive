@@ -3,7 +3,7 @@ import tensorflow as tf
 import matplotlib 
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
-
+from functools import partial
 from contrastive_learning.data.data_utils import _clever_crop
 
 extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
@@ -26,8 +26,8 @@ def load(path, label):
     x = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
     return x, label
 
-def _normalize(x, y):
-    x = _clever_crop(x) 
+def _normalize(x, y, size):
+    x = _clever_crop(x, (size, size)) 
     y = tf.one_hot(y, NB_CLASSES)
     y = tf.cast(y, tf.float32)
     
@@ -39,12 +39,14 @@ def _normalize(x, y):
 def _remove_label(x, y):
     return x
 
-def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='label'):
+def _get_dataset(batch_size, supervised, size, input_col='processed_path', label_col='label'):
     urls_train, labels_train = train_df[input_col], train_df[label_col]
     urls_test, labels_test = test_df[input_col], test_df[label_col]
 
-    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load).map(_normalize)
-    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load).map(_normalize)
+    normalize = partial(_normalize, size=size)
+
+    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load).map(normalize)
+    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load).map(normalize)
 
     if not supervised:
         ds_train = ds_train.map(_remove_label)
@@ -55,11 +57,11 @@ def _get_dataset(batch_size, supervised, input_col='processed_path', label_col='
 
     return ds_train, ds_test
 
-def get_unsupervised(batch_size):
-    return _get_dataset(batch_size, supervised=False)
+def get_unsupervised(batch_size, size):
+    return _get_dataset(batch_size, supervised=False, size)
 
-def get_supervised(batch_size):
-    return _get_dataset(batch_size, supervised=True)
+def get_supervised(batch_size, size):
+    return _get_dataset(batch_size, supervised=True, size)
 
 
 if __name__ == '__main__':
