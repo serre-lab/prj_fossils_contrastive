@@ -32,7 +32,7 @@ model.compile(optimizer=tf.keras.optimizers.Adam(),
 reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.8, verbose=1, patience=4, min_lr=0.00001)
 history = model.fit(train_ds,
                     epochs=epochs,
-                    validation_data=test_ds, 
+                    #validation_data=test_ds, 
                     use_multiprocessing=True,
                     callbacks=[reduce_lr],
                     verbose=True) 
