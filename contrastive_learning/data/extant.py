@@ -89,14 +89,15 @@ def create_tf_feature(img, label):
 
 
 
-def decode_example(example, num_classes: int):
+def decode_example(example, num_classes: int, target_size):
     feature_description = {
-                            'image/bytes': tf.io.FixedLenFeature([], tf.string),
+                            'raw': tf.io.FixedLenFeature([], tf.string),
                             'label': tf.io.FixedLenFeature([], tf.int64, default_value=-1)
                             }
     features = tf.io.parse_single_example(example,features=feature_description)
 
-    img = tf.image.decode_jpeg(features['image/bytes'], channels=3) # * 255.0
+    img = tf.image.decode_jpeg(features['raw'], channels=3) # * 255.0
+    img = tf.image.resize_image_with_pad(img, target_size)
 
     label = tf.cast(features['label'], tf.int32)
     label = tf.one_hot(label, depth=num_classes)
