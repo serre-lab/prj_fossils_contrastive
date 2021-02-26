@@ -65,8 +65,8 @@ def get_supervised(batch_size, size):
 
 
 if __name__ == '__main__':
-    train, test = get_unsupervised(10)
-    train, test = get_supervised(10)
+    train, test = get_unsupervised(256,128)
+    train, test = get_supervised(256,128)
     from time import time 
     # test to unpack first batch and plot image
     tic = time()
