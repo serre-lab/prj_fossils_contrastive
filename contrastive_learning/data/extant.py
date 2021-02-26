@@ -71,13 +71,14 @@ if __name__ == '__main__':
     # test to unpack first batch and plot image
     tic = time()
     for batch in iter(train):
+        print(batch.shape)
         #breakpoint()
         #print("len ? ", len(batch))
         #print("shape ? ", batch[0].shape)
         #print("shape 1 ?", batch)
         #print("batch ? ", batch)
-        for x, y in zip(batch[0],batch[1]):
-            print(x.shape)
+        #for x, y in zip(batch[0],batch[1]):
+        #    print(x.shape)
             #plt.imshow(x)
             #plt.title(class_labels_int2str[y])
             #plt.save('test_image.jpg')
