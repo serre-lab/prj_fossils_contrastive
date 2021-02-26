@@ -10,7 +10,7 @@ nb_classes = NB_CLASSES
 
 train_ds, test_ds = get_supervised(batch_size, size)
 
-backbone = tf.keras.applications.ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(size, size, 3)))
+backbone = tf.keras.applications.ResNet50V2(weights="imagenet", include_top=False, input_tensor=tf.keras.layers.Input(shape=(size, size, 3)))
 
 x = backbone.output
 x = tf.keras.layers.GlobalAveragePooling2D()(x)
