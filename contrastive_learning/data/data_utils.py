@@ -8,12 +8,6 @@ import numpy as np
 from typing import Dict, Union
 import tensorflow as tf
 
-# def class_counts(y: np.ndarray, as_dataframe: bool=False) -> Union[Dict[Union[str,int],int],pd.DataFrame]:
-#     counts = dict(zip(*np.unique(y, return_counts=True)))
-#     if as_dataframe:
-#         counts = pd.DataFrame([(k,v) for k,v in counts.items()]).rename(columns={0:'label', 1:'label_count'})
-#     return counts
-
 
 
 def class_counts(data_df, label_col='family'):

@@ -67,8 +67,9 @@ def get_supervised(batch_size, size):
 if __name__ == '__main__':
     train, test = get_unsupervised(10)
     train, test = get_supervised(10)
-
+    from time import time 
     # test to unpack first batch and plot image
+    tic = time()
     for batch in train.take(1).as_numpy_iterator():
         #breakpoint()
         #print("len ? ", len(batch))
@@ -79,4 +80,5 @@ if __name__ == '__main__':
             plt.imshow(x)
             plt.title(class_labels_int2str[y])
             plt.save('test_image.jpg')
-
+    toc = time()
+    print(toc-tic)
