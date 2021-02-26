@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from contrastive_learning.data.extant import get_supervised, decode_example
 from contrastive_learning.data.extant import NB_CLASSES
-
+from functools import partial
 size = 128
 batch_size = 256
 epochs = 100
@@ -11,6 +11,7 @@ nb_classes = NB_CLASSES
 # train_ds, test_ds = get_supervised(batch_size, size)
 
 
+decode_example = partial(decode_example, num_classes=nb_classes)
 
 raw_image_dataset = tf.data.TFRecordDataset('/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_*.tfrecords')
 train_ds = raw_image_dataset.map(decode_example, num_parallel_calls=-1)
@@ -29,5 +30,8 @@ model.compile(optimizer=tf.keras.optimizers.Adam(),
 
 reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.8, verbose=1, patience=4, min_lr=0.00001)
 history = model.fit(train_ds,
+                    epochs=epochs,
+                    validation_data=test_ds, 
                     use_multiprocessing=True,
-                    callbacks=[reduce_lr]) 
+                    callbacks=[reduce_lr],
+                    verbose=True) 
