@@ -45,8 +45,8 @@ def _get_dataset(batch_size,  size,supervised=True, input_col='processed_path', 
 
     normalize = partial(_normalize, size=size)
 
-    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load).map(normalize)
-    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load).map(normalize)
+    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
+    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
 
     if not supervised:
         ds_train = ds_train.map(_remove_label)
