@@ -103,10 +103,10 @@ if __name__ == '__main__':
         record_file = f'/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_{i}.tfrecords'
         with tf.io.TFRecordWriter(record_file) as writer:
 
-            num_samples_in_shard = batch[0].shape[0]
+            num_samples_in_shard = shard_i[0].shape[0]
 
             for j in range(num_samples_in_shard):
-                img, label = batch[0][i,...].numpy(), batch[1][i,...].numpy()
+                img, label = shard_i[0][i,...].numpy(), shard_i[1][i,...].numpy()
                 label = tf.argmax(label)
                 # cv2.imwrite('temp/img.jpg', img)
                 # img_string = open('temp/img.jpg', 'rb').read()
@@ -114,11 +114,11 @@ if __name__ == '__main__':
                 img = tf.image.encode_jpeg(img, optimize_size=True, chroma_downsampling=False)
                 tf_example = create_tf_feature(img, label)
                 writer.write(tf_example.SerializeToString())   
-        batch_i += 1
+        # batch_i += 1
 
-        if batch_i > 20:
-            shard_i += 1
-            batch_i = 0
+        # if batch_i > 20:
+        #     shard_i += 1
+        #     batch_i = 0
 
     toc = time()
     print(toc-tic)
