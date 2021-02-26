@@ -97,7 +97,7 @@ def decode_example(example, num_classes: int, target_size):
     features = tf.io.parse_single_example(example,features=feature_description)
 
     img = tf.image.decode_jpeg(features['raw'], channels=3) # * 255.0
-    img = tf.image.resize_image_with_pad(img, target_size)
+    img = tf.image.resize(img, target_size)
 
     label = tf.cast(features['label'], tf.int32)
     label = tf.one_hot(label, depth=num_classes)
