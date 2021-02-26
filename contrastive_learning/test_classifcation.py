@@ -13,7 +13,7 @@ nb_classes = NB_CLASSES
 
 decode_example = partial(decode_example, num_classes=nb_classes, target_size=(size,size))
 
-raw_image_dataset = tf.data.TFRecordDataset('/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_*.tfrecords')
+raw_image_dataset = tf.data.TFRecordDataset('/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_0.tfrecords')
 train_ds = raw_image_dataset.map(decode_example, num_parallel_calls=-1).batch(batch_size)
 
 
