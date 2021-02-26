@@ -87,6 +87,27 @@ def create_tf_feature(img, label):
     }
     return tf.train.Example(features=tf.train.Features(feature=features))
 
+
+
+def decode_example(example, num_classes: int):
+    feature_description = {
+                            'image/bytes': tf.io.FixedLenFeature([], tf.string),
+                            'label': tf.io.FixedLenFeature([], tf.int64, default_value=-1)
+                            }
+    features = tf.io.parse_single_example(example,features=feature_description)
+
+    img = tf.image.decode_jpeg(features['image/bytes'], channels=3) # * 255.0
+
+    label = tf.cast(features['label'], tf.int32)
+    label = tf.one_hot(label, depth=num_classes)
+
+    return img, label
+
+
+
+
+
+
 if __name__ == '__main__':
     train, test = get_unsupervised(256,256)
     train, test = get_supervised(256,256)
