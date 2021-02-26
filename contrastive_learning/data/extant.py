@@ -93,7 +93,7 @@ if __name__ == '__main__':
     from time import time 
     # test to unpack first batch and plot image
     tic_inner = tic = time()
-
+    shard_size = 1024
     data_df = train.unbatch().batch(shard_size)
 
     for i, shard_i in enumerate(data_df):
