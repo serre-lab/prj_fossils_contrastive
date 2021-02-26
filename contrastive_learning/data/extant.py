@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib 
@@ -64,23 +66,140 @@ def get_supervised(batch_size, size):
     return _get_dataset(batch_size, size,supervised=True)
 
 
+def _bytes_feature(value):
+    """Returns a bytes_list from a string / byte."""
+    if isinstance(value, type(tf.constant(0))):
+        value = value.numpy() # BytesList won't unpack a string from an EagerTensor.
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+def _float_feature(value):
+    """Returns a float_list from a float / double."""
+    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+
+def _int64_feature(value):
+    """Returns an int64_list from a bool / enum / int / uint."""
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+def create_tf_feature(img, label):
+    features = {
+        'raw': _bytes_feature(img),
+        'label': _int64_feature(label)
+    }
+    return tf.train.Example(features=tf.train.Features(feature=features))
+
 if __name__ == '__main__':
     train, test = get_unsupervised(256,128)
     train, test = get_supervised(256,128)
     from time import time 
     # test to unpack first batch and plot image
-    tic = time()
+    tic_inner = tic = time()
+
+    batch_i = 0
+    shard_i = 0
+
     for batch in iter(train):
         print(batch[0].shape,batch[1].shape)
-        #breakpoint()
-        #print("len ? ", len(batch))
-        #print("shape ? ", batch[0].shape)
-        #print("shape 1 ?", batch)
-        #print("batch ? ", batch)
-        #for x, y in zip(batch[0],batch[1]):
-        #    print(x.shape)
-            #plt.imshow(x)
-            #plt.title(class_labels_int2str[y])
-            #plt.save('test_image.jpg')
+        toc_inner = time()
+        print(f'{toc_inner-tic_inner:.2f} s')
+        tic_inner = time()
+
+        record_file = f'/media/data_cifs/projects/prj_fossils/data/processed_data/tf_records_2021_v1/images_{shard_i}.tfrecords'
+        with tf.io.TFRecordWriter(record_file) as writer:
+            for img, label in zip(batch[0], batch[1]):
+                img = np.array(img)
+                # cv2.imwrite('temp/img.jpg', img)
+                # img_string = open('temp/img.jpg', 'rb').read()
+
+                img = tf.image.encode_jpeg(img, optimize_size=True, chroma_downsampling=False)
+                tf_example = create_tf_feature(img, label)
+                writer.write(tf_example.SerializeToString())        
+        batch_i += 1
+
+        if batch_i > 20:
+            shard_i += 1
+            batch_i = 0
+
     toc = time()
     print(toc-tic)
+    
+##################################
+    # def parse_image(self, src_filepath, label):
+
+    #     img = tf.io.read_file(src_filepath)
+    #     img = tf.image.decode_image(img, channels=3)
+    #     img = tf.compat.v1.image.resize_image_with_pad(img, *self.target_size)
+    #     return img, label
+        
+    # def encode_example(self, img, label):
+    #     img = tf.image.encode_jpeg(img, optimize_size=True, chroma_downsampling=False)
+
+    #     features = {
+    #                 'image/bytes': bytes_feature(img),
+    #                 'label': int64_feature(label)
+    #                 }
+    #     example_proto = tf.train.Example(features=tf.train.Features(feature=features))
+    #     return example_proto.SerializeToString()
+    # def decode_example(self, example):
+    #     feature_description = {
+    #                             'image/bytes': tf.io.FixedLenFeature([], tf.string),
+    #                             'label': tf.io.FixedLenFeature([], tf.int64, default_value=-1)
+    #                             }
+    #     features = tf.io.parse_single_example(example,features=feature_description)
+
+    #     img = tf.image.decode_jpeg(features['image/bytes'], channels=3) # * 255.0
+    #     img = tf.compat.v1.image.resize_image_with_pad(img, *self.target_size)
+
+    #     label = tf.cast(features['label'], tf.int32)
+    #     label = tf.one_hot(label, depth=self.num_classes)
+
+    #     return img, label
+###############################
+
+
+    # def _bytes_feature(value):
+    # """Returns a bytes_list from a string / byte."""
+    #     if isinstance(value, type(tf.constant(0))):
+    #         value = value.numpy() # BytesList won't unpack a string from an EagerTensor.
+    #     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    # def _float_feature(value):
+    #     """Returns a float_list from a float / double."""
+    #     return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+
+    # def _int64_feature(value):
+    #     """Returns an int64_list from a bool / enum / int / uint."""
+    #     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+    # def create_tf_feature(img, label):
+    #     features = {
+    #         'raw': _bytes_feature(img),
+    #         'label': _int64_feature(label)
+    #     }
+    #     return tf.train.Example(features=tf.train.Features(feature=features))
+
+
+    # first pass, construct random filename for each shard
+    # filenames_for_shard = [ [] for _ in range(nb_models) ]
+
+    # for shard_i in range(nb_model):
+    # for classname in classes_files.keys():
+    #     class_id = class_to_id[classname]
+    #     pack_size = pack_per_class[class_id]
+    #     for f in classes_files[classname][shard_i*pack_size:(shard_i+1)*pack_size]:
+    #         filenames_for_shard[shard_i].append(f)
+
+    # [np.random.shuffle(filenames_for_shard[i]) for i in range(nb_models)]
+
+    # for shard_i in range(nb_model):
+    # record_file = f'images_{shard_i}.tfrecords'
+    # with tf.io.TFRecordWriter(record_file) as writer:
+    #     for f in filenames_for_shard[shard_i]:
+    #     img = cv2.imread(f)[...,::-1]
+    #     img = tf.image.resize_with_crop_or_pad(img, 224, 224)
+    #     img = arr(img)
+    #     cv2.imwrite('temp/img.jpg', img)
+    #     img_string = open('temp/img.jpg', 'rb').read()
+
+    #     tf_example = create_tf_feature(img_string, class_id)
+    #     writer.write(tf_example.SerializeToString())
+
