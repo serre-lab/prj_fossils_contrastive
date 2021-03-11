@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from functools import partial
+from sklearn.model_selection import train_test_split
 from contrastive_learning.data.data_utils import _clever_crop
 
 extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
@@ -41,14 +42,24 @@ def _normalize(x, y, size):
 def _remove_label(x, y):
     return x
 
-def _get_dataset(batch_size,  size,supervised=True, input_col='processed_path', label_col='label'):
-    urls_train, labels_train = train_df[input_col], train_df[label_col]
-    urls_test, labels_test = test_df[input_col], test_df[label_col]
-
+def _get_dataset(batch_size, 
+                 size,
+                 supervised=True,
+                 input_col='processed_path',
+                 label_col='label',
+                 val_split: float=0.0,
+                 seed: int=None):
+    
+    x_train, y_train = train_df[input_col], train_df[label_col]
+    x_test, y_test = test_df[input_col], test_df[label_col]
+    
     normalize = partial(_normalize, size=size)
-
-    ds_train = tf.data.Dataset.from_tensor_slices((urls_train, labels_train)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
-    ds_test  = tf.data.Dataset.from_tensor_slices((urls_test, labels_test)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
+    
+    if val_split:
+        x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size = val_split, random_state = seed)
+        
+    ds_train = tf.data.Dataset.from_tensor_slices((x_train, y_train)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
+    ds_test  = tf.data.Dataset.from_tensor_slices((x_test, y_test)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
 
     if not supervised:
         ds_train = ds_train.map(_remove_label)
@@ -57,13 +68,22 @@ def _get_dataset(batch_size,  size,supervised=True, input_col='processed_path', 
     ds_train = ds_train.batch(batch_size)
     ds_test = ds_test.batch(batch_size)
 
+    if val_split:
+        x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size = val_split, random_state = seed)
+        
+        ds_val = tf.data.Dataset.from_tensor_slices((x_val, y_val)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
+        if not supervised:
+            ds_val = ds_val.map(_remove_label)
+        ds_val = ds_val.batch(batch_size)
+        return ds_train, ds_val, ds_test
+
     return ds_train, ds_test
 
-def get_unsupervised(batch_size, size):
-    return _get_dataset(batch_size,size,  supervised=False)
+def get_unsupervised(batch_size, size, val_split: float=0.0, seed: int=None):
+    return _get_dataset(batch_size,size,  supervised=False, val_split=val_split, seed=seed)
 
-def get_supervised(batch_size, size):
-    return _get_dataset(batch_size, size,supervised=True)
+def get_supervised(batch_size, size, val_split: float=0.0, seed: int=None):
+    return _get_dataset(batch_size, size,supervised=True, val_split=val_split, seed=seed)
 
 
 def _bytes_feature(value):
