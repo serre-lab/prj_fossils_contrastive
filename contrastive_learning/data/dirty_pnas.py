@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from data_utils import _clever_crop
+from contrastive_learning.data.data_utils import _clever_crop
 NB_CLASSES = 19
 INPUT_SIZE = (128,128)
 

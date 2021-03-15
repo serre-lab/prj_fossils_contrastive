@@ -49,7 +49,9 @@ def get_supervised(batch_size=128, val_split=0.2):
     val_dataset = val_dataset.batch(batch_size)
     test_dataset = test_dataset.batch(batch_size)
 
-    return train_dataset, val_dataset, test_datasetdef _clever_crop(img):
+    return train_dataset, val_dataset, test_dataset
+
+def _clever_crop(img):
     maxside = tf.math.maximum(tf.shape(img)[0],tf.shape(img)[1])
     minside = tf.math.minimum(tf.shape(img)[0],tf.shape(img)[1])
     new_img = img
