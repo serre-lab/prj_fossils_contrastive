@@ -9,32 +9,39 @@ from functools import partial
 from sklearn.model_selection import train_test_split
 from contrastive_learning.data.data_utils import _clever_crop
 
-extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
 
-train_df = pd.read_csv(extant_csv_path + 'extant_family_10_train.csv')
-val_df = pd.read_csv(extant_csv_path + 'extant_family_10_val.csv')
-test_df = pd.read_csv(extant_csv_path + 'extant_family_10_test.csv')
+class DatasetInfo:
+    extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
 
-class_labels = sorted(set(train_df['family'].values))
-class_labels_str2int = {label:idx for idx, label in enumerate(class_labels)}
-class_labels_int2str = {idx:label for label, idx in class_labels_str2int.items()}
+    def __init__(self, label_col='family'):
+        train_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_train.csv')
+        val_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_val.csv')
+        test_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_test.csv')
 
+        self.label_col = label_col
+        self.class_labels = sorted(set(train_df[label_col].values))
+        self.class_labels_str2int = {label:idx for idx, label in enumerate(self.class_labels)}
+        self.class_labels_int2str = {idx:label for label, idx in self.class_labels_str2int.items()}
 
-train_df = train_df.assign(label = train_df.family.apply(lambda x: class_labels_str2int[x]))
-val_df = val_df.assign(label = val_df.family.apply(lambda x: class_labels_str2int[x]))
-test_df = test_df.assign(label = test_df.family.apply(lambda x: class_labels_str2int[x]))
-NUM_CLASSES = len(class_labels)
-NUM_SAMPLES = {'train':len(train_df),
-               'val':len(val_df),
-               'test':len(test_df)}
+        self.train_df = train_df.assign(label = train_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.val_df = val_df.assign(label = val_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.test_df = test_df.assign(label = test_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.NUM_CLASSES = len(self.class_labels)
+        self.NUM_SAMPLES = {'train':len(self.train_df),
+                            'val':len(self.val_df),
+                            'test':len(self.test_df)}
+
+    def as_dataframes(self):
+        return self.train_df, self.val_df, self.test_df
+
 
 def load(path, label):
     x = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
     return x, label
 
-def _normalize(x, y, size):
+def _normalize(x, y, size, num_classes):
     x = _clever_crop(x, (size, size)) 
-    y = tf.one_hot(y, NUM_CLASSES)
+    y = tf.one_hot(y, num_classes)
     y = tf.cast(y, tf.float32)
     
     x = tf.clip_by_value(x, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
@@ -51,12 +58,15 @@ def _get_dataset(batch_size,
                  input_col='processed_path',
                  label_col='label',
                  seed: int=None):
-    
+    ds_info = DatasetInfo()
+
+    train_df, val_df, test_df = ds_info.as_dataframes()
+
     x_train, y_train = train_df[input_col], train_df[label_col]
     x_val, y_val = val_df[input_col], val_df[label_col]
     x_test, y_test = test_df[input_col], test_df[label_col]
     
-    normalize = partial(_normalize, size=size)
+    normalize = partial(_normalize, size=size, num_classes=ds_info.NUM_CLASSES)
     
     ds_train = tf.data.Dataset.from_tensor_slices((x_train, y_train)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
     ds_val = tf.data.Dataset.from_tensor_slices((x_val, y_val)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
@@ -73,12 +83,15 @@ def _get_dataset(batch_size,
 
     return ds_train, ds_val, ds_test
 
+#####################################################################
+
 def get_unsupervised(batch_size, size, seed: int=None):
     return _get_dataset(batch_size,size, supervised=False, seed=seed)
 
 def get_supervised(batch_size, size, seed: int=None):
     return _get_dataset(batch_size, size, supervised=True, seed=seed)
 
+#####################################################################
 
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
