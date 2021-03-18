@@ -12,7 +12,7 @@ from typing import Tuple
 from contrastive_learning.data import stateful
 from contrastive_learning.utils.image_utils import clever_crop
 
-INPUT_SIZE = (256,256)
+TARGET_SIZE = (256,256)
 
 class ExtantDatasetInfo(stateful.DatasetInfo):
 
@@ -29,7 +29,7 @@ def load(path, label):
 def _remove_label(x, y):
     return x
 
-def _get_dataset(target_size: Tuple[int]=INPUT_SIZE,
+def _get_dataset(target_size: Tuple[int]=TARGET_SIZE,
                  batch_size: int=1,
                  grayscale: bool=False,
                  supervised=True,
@@ -70,7 +70,7 @@ def _get_dataset(target_size: Tuple[int]=INPUT_SIZE,
                             .map(load, num_parallel_calls=-1) \
                             .map(normalize(num_classes), num_parallel_calls=-1)
     ds_test  = tf.data.Dataset.from_tensor_slices((x_test, y_test)) \
-                              .map(load, num_parallel_calls=-1)
+                              .map(load, num_parallel_calls=-1) \
                               .map(normalize(num_classes), num_parallel_calls=-1)
 
     if not supervised:
@@ -85,12 +85,26 @@ def _get_dataset(target_size: Tuple[int]=INPUT_SIZE,
     return ds_train, ds_val, ds_test
 
 #####################################################################
+def get_unsupervised(target_size: Tuple[int]=TARGET_SIZE,
+                     batch_size: int=1,
+                     grayscale: bool=False,
+                     seed: int=None):
+    return _get_dataset(target_size=target_size,
+                        batch_size=batch_size,
+                        grayscale=grayscale,
+                        supervised=False,
+                        seed=seed)
 
-def get_unsupervised(batch_size, size, seed: int=None):
-    return _get_dataset(batch_size,size, supervised=False, seed=seed)
+def get_supervised(target_size: Tuple[int]=TARGET_SIZE,
+                   batch_size: int=1,
+                   grayscale: bool=False,
+                   seed: int=None):
+    return _get_dataset(target_size=target_size,
+                        batch_size=batch_size,
+                        grayscale=grayscale,
+                        supervised=True,
+                        seed=seed)
 
-def get_supervised(batch_size, size, seed: int=None):
-    return _get_dataset(batch_size, size, supervised=True, seed=seed)
 
 #####################################################################
 

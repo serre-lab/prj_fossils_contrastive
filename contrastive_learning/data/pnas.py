@@ -1,16 +1,18 @@
+from functools import partial
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from typing import Union, Tuple, List, Dict
 from sklearn.model_selection import train_test_split
 
+from contrastive_learning.utils.image_utils import clever_crop
 from contrastive_learning.utils.data_utils import load_dataset_from_artifact, class_counts
 from contrastive_learning.utils.label_utils import ClassLabelEncoder
 from contrastive_learning.data import stateful
 # def _normalize(x, y):
 #     return x.astype('float32') / 255.0, tf.one_hot(y[:,0], 10).numpy()
 
-
+TARGET_SIZE = (256,256)
 PNAS_root_dir = "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100"
 
 def load_data_from_tensor_slices(data: pd.DataFrame,
@@ -72,6 +74,8 @@ def load_pnas_dataset(threshold=100,
             'test':test_df}
 
 def extract_data(data: Dict[str,pd.DataFrame],
+                 target_size=TARGET_SIZE,
+                 grayscale=False,
                  x='path',
                  y='family',
                  shuffle_first=True,
@@ -80,6 +84,23 @@ def extract_data(data: Dict[str,pd.DataFrame],
     
     subset_keys = list(data.keys())
     class_encoder = ClassLabelEncoder(y_true=data['train'][y], name='PNAS')
+    num_classes = class_encoder.num_classes
+    _clever_crop = clever_crop(target_size=target_size,
+                               grayscale=grayscale)
+
+    def _normalize(x, y, num_classes):
+        x = _clever_crop(x)
+        y = tf.one_hot(y, num_classes)
+        y = tf.cast(y, tf.float32)
+        
+        x = tf.clip_by_value(x, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
+        x = x * 2 - 1
+
+        return x, y
+
+    def normalize(num_classes):
+        return partial(_normalize, num_classes=num_classes)
+
     
     extracted_data = {}
     for subset in subset_keys:
@@ -98,7 +119,9 @@ def extract_data(data: Dict[str,pd.DataFrame],
         
         training = (subset=='train')
         extracted_data[subset] = load_data_from_tensor_slices(data=extracted_data[subset], training=training, seed=seed, x_col='path', y_col='label', dtype=tf.float32)
-    
+
+        extracted_data[subset] = extracted_data[subset].map(normalize(num_classes))
+
     return extracted_data, class_encoder
 
 
@@ -122,6 +145,9 @@ def load_and_extract_pnas(threshold=100,
                                      seed=seed)
     
     return data, class_encoder
+
+
+
 
 
 def get_unsupervised(batch_size: int=1,
