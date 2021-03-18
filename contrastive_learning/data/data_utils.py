@@ -53,7 +53,7 @@ def load_Leaves_Minus_PNAS_dataset():
 
 def load_train_test_artifact(artifact_uri='jrose/uncategorized/Leaves-PNAS:v1', run=None):
     if run is None:
-        run = wandb.init(reinit=True)
+        run = wandb.init(reinit=True, settings=wandb.Settings(start_method="fork"))
     
     # with run:
     artifact = run.use_artifact(artifact_uri, type='dataset')
