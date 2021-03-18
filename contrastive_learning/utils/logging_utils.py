@@ -107,12 +107,19 @@ class PredictionResults(stateful.Stateful):
         """
         PredictionResults data container
 
+        N = # of samples
+        M = # of classes
+
         Args:
-            y_prob (np.ndarray): 
+            y_prob (np.ndarray):
+                Model output probabilities (dtype==float) prior to performing argmax to get predicted labels. Array shape == (N,M)
             y_true (np.ndarray): 
+                One-hot encoded ground truth labels (dtype==uint8) for supervised learning problems. Array shape == (N,M)
             class_names (Union[List, np.ndarray], optional): Defaults to None.
+                List-like container for the string class names, for each of which their index in the sequence corresponds to their integer encoded values.
             name (str, optional): Defaults to 'predictions'.
             enforce_schema (bool, optional): Defaults to True.
+                If False, skip executing the data validation tests in PredictionResults.enforce_schema()
         """                 
         self._assign_values(y_prob=y_prob, y_true=y_true, class_names=class_names, name=name, enforce_schema=enforce_schema, **extra_metadata)
         
@@ -168,7 +175,7 @@ class PredictionResults(stateful.Stateful):
         if as_array:
             return np.asarray(names)
         return names
-
+    ####################################
     def get_y_pred(self, one_hot=False):
         if one_hot:
             return np_onehot(self.y_pred, depth=self.num_classes)
@@ -199,7 +206,7 @@ class PredictionResults(stateful.Stateful):
             y_true_new = tf.one_hot(y_true_new, depth=self.num_classes).numpy()
         self._y_true = y_true_new
 
-    
+    ####################################
     @property
     def num_classes(self):
         return self.y_prob.shape[1]
@@ -286,14 +293,10 @@ class PredictionMetrics(stateful.Stateful):
     Container for 
 
     Args:
-        stateful ([type]): [description]
+        results (PredictionResults): [description]
     """    
     name: str = 'metrics'
     _results: PredictionResults = None
-    # tp: np.ndarray = None
-    # tn: np.ndarray = None
-    # fp: np.ndarray = None
-    # fn: np.ndarray = None
     class_names: List[str] = None
     
     _metric_names = ['tp','tn','fp','fn']
