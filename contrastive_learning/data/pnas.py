@@ -11,12 +11,14 @@ from contrastive_learning.data import stateful
 #     return x.astype('float32') / 255.0, tf.one_hot(y[:,0], 10).numpy()
 
 
+PNAS_root_dir = "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100"
+
 def load_data_from_tensor_slices(data: pd.DataFrame,
                                  cache_paths: Union[bool,str]=True,
-                                 training=False,
-                                 seed=None,
-                                 x_col='path',
-                                 y_col='label',
+                                 training: bool=False,
+                                 seed: int=None,
+                                 x_col: str='path',
+                                 y_col: str='label',
                                  dtype=None):
     dtype = dtype or tf.uint8
     num_samples = data.shape[0]
@@ -46,7 +48,19 @@ def load_data_from_tensor_slices(data: pd.DataFrame,
 def load_pnas_dataset(threshold=100,
                       validation_split=0.2,
                       seed=None,
-                      y='family'):
+                      y='family'
+                      ) -> Dict[str,pd.DataFrame]:
+    """[summary]
+
+    Args:
+        threshold (int, optional): [description]. Defaults to 100.
+        validation_split (float, optional): [description]. Defaults to 0.2.
+        seed ([type], optional): [description]. Defaults to None.
+        y (str, optional): [description]. Defaults to 'family'.
+
+    Returns:
+        Dict[str,pd.DataFrame]: [description]
+    """
 
     train_df, test_df = load_dataset_from_artifact(dataset_name='PNAS', threshold=threshold, test_size=0.5, version='latest')
     train_df, val_df  = train_test_split(train_df, test_size=validation_split, random_state=seed, shuffle=True, stratify=train_df[y])

@@ -5,7 +5,8 @@ import tensorflow as tf
 #                               compose_transformations)
 from functools import partial
 import contrastive_learning.data.cifar as cifar
-import contrastive_learning.data.dirty_pnas as pnas
+# import contrastive_learning.data.dirty_pnas as pnas
+import contrastive_learning.data.pnas as pnas
 import contrastive_learning.data.extant as extant
 
 def augmentations(x, crop_size=22, brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2):
@@ -31,12 +32,32 @@ def symmetric_batch(batch_x):
 def _resize_images(batch_x, width=224, height=224):
     return tf.image.resize(batch_x, (width, height))
 
+
 def get_dataset(dataset='cifar_unsup',
                 batch_size=128,
                 val_split=0.2,
                 target_size=(224,224,3),
                 path='dataset',
-                seed: int=None):
+                seed: int=None,
+                return_label_encoder: bool=False):
+    """[summary]
+
+    Args:
+        dataset (str, optional): [description]. Defaults to 'cifar_unsup'.
+        batch_size (int, optional): [description]. Defaults to 128.
+        val_split (float, optional): [description]. Defaults to 0.2.
+        target_size (tuple, optional): [description]. Defaults to (224,224,3).
+        path (str, optional): [description]. Defaults to 'dataset'.
+        seed (int, optional): [description]. Defaults to None.
+        return_label_encoder (bool, optional): [description]. Defaults to False.
+
+    Raises:
+        NotImplementedError: [description]
+
+    Returns:
+        [type]: [description]
+    """
+
     """
     TODO (Jacob): Standardize expected input/output data attributes, especially expected min/max pixel values
     
@@ -51,35 +72,121 @@ def get_dataset(dataset='cifar_unsup',
     
     # base dataset
     if dataset == 'cifar_unsup':
-        train, val, test = cifar.get_unsupervised(batch_size=batch_size//2, val_split=val_split)
-        # apply symmetric batch mechanism
-        train = train.map(symmetric_batch)
-        val = val.map(symmetric_batch)
-        test = test.map(symmetric_batch)
+        load_data_function = cifar.get_unsupervised
     elif dataset == 'cifar_sup':
-        train, val, test = cifar.get_supervised(batch_size=batch_size//2, val_split=val_split)
-        train = train.map(lambda x,y : (resize_images(x), y) )  
-        val = val.map(lambda x,y : (resize_images(x), y))
-        test = test.map(lambda x,y : (resize_images(x), y))
+        load_data_function = cifar.get_supervised
     elif dataset == 'pnas_unsup':
-        train, test = pnas.get_unsupervised(batch_size=batch_size//2, path=path)
-        train = train.map(symmetric_batch) 
-        test = test.map(symmetric_batch)
-        val = test
+        load_data_function = pnas.get_unsupervised
     elif dataset == 'pnas_sup':
-        train, test = pnas.get_supervised(batch_size=batch_size//2, path=path)
-        val = test
+        load_data_function = pnas.get_supervised
     elif dataset == 'extant_unsup':
-        # TBD: unit test this
-        train, val, test = extant.get_unsupervised(batch_size=batch_size//2, size=target_size[0], seed=seed)
+        load_data_function = extant.get_unsupervised
+    elif dataset == 'extant_sup':
+        load_data_function = extant.get_supervised
+    else: 
+        raise NotImplementedError(f'Dataset {dataset} is not implemented yet')
+
+    if dataset.endswith('_unsup'):
+        train, val, test = load_data_function(batch_size=batch_size//2,
+                                              val_split=val_split)
         train = train.map(symmetric_batch)
         val = val.map(symmetric_batch)
         test = test.map(symmetric_batch)
-    elif dataset == 'extant_sup':
-        # TBD: unit test this
-        train, val, test = extant.get_supervised(batch_size=batch_size, size=target_size[0], seed=seed)
 
-    else: 
-        raise NotImplementedError('Dataset is not implemented yet')
+        
+    elif dataset.endswith('_sup'):
+        if return_label_encoder:
+            (train, val, test), label_encoder = load_data_function(val_split=val_split, 
+                                                                   return_label_encoder=True)
+        else:
+            train, val, test = load_data_function(val_split=val_split, 
+                                                  return_label_encoder=False)
+        
+        train = train.map(lambda x,y : (resize_images(x), y)).batch(batch_size)
+        val = val.map(lambda x,y : (resize_images(x), y)).batch(batch_size)
+        test = test.map(lambda x,y : (resize_images(x), y)).batch(batch_size)
+
+        if return_label_encoder:
+            return (train, val, test), label_encoder
+        
+        return train, val, test
+
 
     return train, val, test
+
+
+
+
+
+# def get_dataset(dataset='cifar_unsup',
+#                 batch_size=128,
+#                 val_split=0.2,
+#                 target_size=(224,224,3),
+#                 path='dataset',
+#                 seed: int=None,
+#                 return_label_encoder: bool=False):
+#     """[summary]
+
+#     Args:
+#         dataset (str, optional): [description]. Defaults to 'cifar_unsup'.
+#         batch_size (int, optional): [description]. Defaults to 128.
+#         val_split (float, optional): [description]. Defaults to 0.2.
+#         target_size (tuple, optional): [description]. Defaults to (224,224,3).
+#         path (str, optional): [description]. Defaults to 'dataset'.
+#         seed (int, optional): [description]. Defaults to None.
+#         return_label_encoder (bool, optional): [description]. Defaults to False.
+
+#     Raises:
+#         NotImplementedError: [description]
+
+#     Returns:
+#         [type]: [description]
+#     """
+
+#     """
+#     TODO (Jacob): Standardize expected input/output data attributes, especially expected min/max pixel values
+    
+#     (Prospective) Data Constraints:
+    
+#     unsupervised datasets:
+#         * These are all returned after applying the resnet_v2 preprocess_input function, so output constraints expected:
+#             1. Converted channels from RGB to BGR
+#             2. Image pixels converted from range [0,255] to be zero-centered with respect to the Imagenet dataset.
+#     """
+#     resize_images = partial(_resize_images, width=target_size[0], height=target_size[1])
+    
+#     # base dataset
+#     if dataset == 'cifar_unsup':
+#         train, val, test = cifar.get_unsupervised(batch_size=batch_size//2, val_split=val_split)
+#         # apply symmetric batch mechanism
+#         train = train.map(symmetric_batch)
+#         val = val.map(symmetric_batch)
+#         test = test.map(symmetric_batch)
+#     elif dataset == 'cifar_sup':
+#         if return_label_encoder:
+#             (train, val, test), label_encoder = cifar.get_supervised(batch_size=batch_size//2, val_split=val_split, return_label_encoder=return_label_encoder)
+#         train = train.map(lambda x,y : (resize_images(x), y) )  
+#         val = val.map(lambda x,y : (resize_images(x), y))
+#         test = test.map(lambda x,y : (resize_images(x), y))
+#     elif dataset == 'pnas_unsup':
+#         train, test = pnas.get_unsupervised(batch_size=batch_size//2, path=path)
+#         train = train.map(symmetric_batch) 
+#         test = test.map(symmetric_batch)
+#         val = test
+#     elif dataset == 'pnas_sup':
+#         train, test = pnas.get_supervised(batch_size=batch_size//2, path=path)
+#         val = test
+#     elif dataset == 'extant_unsup':
+#         # TBD: unit test this
+#         train, val, test = extant.get_unsupervised(batch_size=batch_size//2, size=target_size[0], seed=seed)
+#         train = train.map(symmetric_batch)
+#         val = val.map(symmetric_batch)
+#         test = test.map(symmetric_batch)
+#     elif dataset == 'extant_sup':
+#         # TBD: unit test this
+#         train, val, test = extant.get_supervised(batch_size=batch_size, size=target_size[0], seed=seed)
+
+#     else: 
+#         raise NotImplementedError('Dataset is not implemented yet')
+
+#     return train, val, test

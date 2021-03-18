@@ -7,32 +7,33 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from functools import partial
 from sklearn.model_selection import train_test_split
-from contrastive_learning.data.data_utils import _clever_crop
+from contrastive_learning.utils.data_utils import _clever_crop
 
 
-class DatasetInfo:
-    extant_csv_path = '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
+# class DatasetInfo:
+#     csv_dataset_dir: str= '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' #extant_family_catalog.csv
+#     dataset_id: str=None
 
-    def __init__(self, label_col='family'):
-        train_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_train.csv')
-        val_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_val.csv')
-        test_df = pd.read_csv(self.extant_csv_path + 'extant_family_10_test.csv')
+#     def __init__(self, label_col='family'):
+#         train_df = pd.read_csv(self.csv_dataset_dir + 'extant_family_10_train.csv')
+#         val_df = pd.read_csv(self.csv_dataset_dir + 'extant_family_10_val.csv')
+#         test_df = pd.read_csv(self.csv_dataset_dir + 'extant_family_10_test.csv')
 
-        self.label_col = label_col
-        self.class_labels = sorted(set(train_df[label_col].values))
-        self.class_labels_str2int = {label:idx for idx, label in enumerate(self.class_labels)}
-        self.class_labels_int2str = {idx:label for label, idx in self.class_labels_str2int.items()}
+#         self.label_col = label_col
+#         self.class_labels = sorted(set(train_df[label_col].values))
+#         self.class_labels_str2int = {label:idx for idx, label in enumerate(self.class_labels)}
+#         self.class_labels_int2str = {idx:label for label, idx in self.class_labels_str2int.items()}
 
-        self.train_df = train_df.assign(label = train_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
-        self.val_df = val_df.assign(label = val_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
-        self.test_df = test_df.assign(label = test_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
-        self.NUM_CLASSES = len(self.class_labels)
-        self.NUM_SAMPLES = {'train':len(self.train_df),
-                            'val':len(self.val_df),
-                            'test':len(self.test_df)}
+#         self.train_df = train_df.assign(label = train_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+#         self.val_df = val_df.assign(label = val_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+#         self.test_df = test_df.assign(label = test_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+#         self.NUM_CLASSES = len(self.class_labels)
+#         self.NUM_SAMPLES = {'train':len(self.train_df),
+#                             'val':len(self.val_df),
+#                             'test':len(self.test_df)}
 
-    def as_dataframes(self):
-        return self.train_df, self.val_df, self.test_df
+#     def as_dataframes(self):
+#         return self.train_df, self.val_df, self.test_df
 
 
 def load(path, label):
