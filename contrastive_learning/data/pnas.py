@@ -128,7 +128,9 @@ def extract_data(data: Dict[str,pd.DataFrame],
 
 
 
-def load_and_extract_pnas(threshold=100,
+def load_and_extract_pnas(target_size=TARGET_SIZE,
+                          grayscale: bool=False,
+                          threshold=100,
                           validation_split=0.2,
                           seed=None,
                           x_col='path',
@@ -141,10 +143,12 @@ def load_and_extract_pnas(threshold=100,
                              y=y_col)
 
     data, class_encoder = extract_data(data=data,
-                                     x=x_col,
-                                     y=y_col,
-                                     shuffle_first=True,
-                                     seed=seed)
+                                       target_size=target_size,
+                                       grayscale=grayscale,
+                                       x=x_col,
+                                       y=y_col,
+                                       shuffle_first=True,
+                                       seed=seed)
     
     return data, class_encoder
 
@@ -152,12 +156,16 @@ def load_and_extract_pnas(threshold=100,
 
 
 
-def get_unsupervised(batch_size: int=1,
+def get_unsupervised(target_size=TARGET_SIZE,
+                     grayscale: bool=False,
+                     batch_size: int=1,
                      val_split=0.2,
                      threshold=100,
                      seed: int=None):
 
-    data, _ = load_and_extract_pnas(threshold=threshold,
+    data, _ = load_and_extract_pnas(target_size=target_size,
+                                    grayscale=grayscale,
+                                    threshold=threshold,
                                     validation_split=val_split,
                                     seed=seed)
 
@@ -168,13 +176,17 @@ def get_unsupervised(batch_size: int=1,
     return train_dataset, val_dataset, test_dataset
 
 
-def get_supervised(batch_size: int=1,
+def get_supervised(target_size=TARGET_SIZE,
+                   grayscale: bool=False,
+                   batch_size: int=1,
                    val_split=0.2,
                    threshold=100,
                    seed: int=None,
                    return_label_encoder: bool=False):
 
-    data, label_encoder = load_and_extract_pnas(threshold=threshold,
+    data, label_encoder  = load_and_extract_pnas(target_size=target_size,
+                                    grayscale=grayscale,
+                                    threshold=threshold,
                                     validation_split=val_split,
                                     seed=seed)
 
