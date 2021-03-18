@@ -133,9 +133,9 @@ def get_unsupervised(batch_size: int=1,
                                     validation_split=val_split,
                                     seed=seed)
 
-    train_dataset = data['train'].map(lambda sample: sample['x']).batch(batch_size)
-    val_dataset = data['val'].map(lambda sample: sample['x']).batch(batch_size)
-    test_dataset = data['test'].map(lambda sample: sample['x']).batch(batch_size)
+    train_dataset = data['train'].map(lambda sample: sample['x'])#.batch(batch_size)
+    val_dataset = data['val'].map(lambda sample: sample['x'])#.batch(batch_size)
+    test_dataset = data['test'].map(lambda sample: sample['x'])#.batch(batch_size)
 
     return train_dataset, val_dataset, test_dataset
 
@@ -150,9 +150,9 @@ def get_supervised(batch_size: int=1,
                                     validation_split=val_split,
                                     seed=seed)
 
-    train_dataset = data['train'].batch(batch_size)
-    val_dataset = data['val'].batch(batch_size)
-    test_dataset = data['test'].batch(batch_size)
+    train_dataset = data['train']#.batch(batch_size)
+    val_dataset = data['val']#.batch(batch_size)
+    test_dataset = data['test']#.batch(batch_size)
 
 
     if return_label_encoder:
