@@ -4,134 +4,11 @@ import tensorflow as tf
 from typing import Union, Tuple, List, Dict
 from sklearn.model_selection import train_test_split
 
-from contrastive_learning.data.data_utils import load_dataset_from_artifact, class_counts
+from contrastive_learning.utils.data_utils import load_dataset_from_artifact, class_counts
+from contrastive_learning.utils.label_utils import ClassLabelEncoder
 from contrastive_learning.data import stateful
 # def _normalize(x, y):
 #     return x.astype('float32') / 255.0, tf.one_hot(y[:,0], 10).numpy()
-
-
-class ClassLabelEncoder(stateful.Stateful):
-    def __init__(self, true_labels: np.ndarray, num_classes: int=None, name: str=''):
-        self.dataset_name = name
-        self.class_names = class_counts(true_labels)
-        
-        self.num_samples = true_labels.shape[0]
-        self.num_classes = num_classes or len(self.class_names)
-        self._str2int = {name:num for num, name in enumerate(self.class_names)}
-        self._int2str = {num:name for num, name in enumerate(self.class_names)}
-        
-        
-    def __getstate__(self):
-        return {'dataset_name':self.dataset_name,
-                'num_samples':self.num_samples,
-                'num_classes':self.num_classes,
-                'class_names':self.class_names}.copy()
-
-    def __setstate__(self, state):
-        self.__dict__.update({'dataset_name':state['dataset_name'],
-                              'num_samples':state['num_samples'],
-                              'num_classes':state['num_classes'],
-                              'class_names':state['class_names']})
-
-        self._str2int = {name:num for num, name in enumerate(state['class_names'])}
-        self._int2str = {num:name for num, name in enumerate(state['class_names'])}
-        self.info = None
-        
-    def get_state(self):
-        return self.__getstate__()
-    
-    def set_state(self, state):
-        self.__setstate__(state)
-
-    def decode_predictions(self, preds, top=5):
-        """Decodes the prediction of an PlantVillage model.
-        Arguments:
-            preds: Numpy array encoding a batch of predictions.
-            top: Integer, how many top-guesses to return. Defaults to 5.
-        Returns:
-            A list of lists of top class prediction tuples
-            `(class_name, class_description, score)`.
-            One list of tuples per sample in batch input.
-        Raises:
-            ValueError: In case of invalid shape of the `pred` array
-            (must be 2D).
-        """
-        if preds.ndim != 2 or preds.shape[1] != self.num_classes:
-            raise ValueError(f'`decode_predictions` expects '
-                             'a batch of predictions '
-                            f'(i.e. a 2D array of shape (samples, {self.num_classes})). '
-                             'Found array with shape: ' + str(preds.shape))
-        results = []
-        for pred in preds:
-            top_indices = pred.argsort()[-top:][::-1]
-            result = [tuple(self.class_names[str(i)]) + (pred[i],) for i in top_indices]
-            result.sort(key=lambda x: x[2], reverse=True)
-            results.append(result)
-        return results
-
-
-    def str2int(self, labels: Union[List[str],Tuple[str]]):
-        labels = self._valid_eager_tensor(labels)
-        if not isinstance(labels, (list, tuple)):
-            if isinstance(labels, pd.Series):
-                labels = labels.values
-            if isinstance(labels, np.ndarray):
-                labels = labels.tolist()
-            else:
-                assert isinstance(labels, str)
-                labels = [labels]
-        output = []
-        keep_labels = self._str2int
-        for l in labels:
-            if l in keep_labels:
-                output.append(keep_labels[l])
-        return output
-#         return [self._str2int(l) for l in labels]
-
-    def int2str(self, labels: Union[List[int],Tuple[int]]):
-        labels = self._valid_eager_tensor(labels)
-        if not isinstance(labels, (list, tuple)):
-            if isinstance(labels, np.ndarray):
-                labels = labels.tolist()
-            else:
-                assert isinstance(labels, (int, np.int64))
-                labels = [labels]
-        output = []
-        keep_labels = self._int2str
-        for l in labels:
-            if l in keep_labels:
-                output.append(keep_labels[l])
-        return output
-#         return [self._int2str(l) for l in labels]
-
-    def one_hot(self, label: tf.int64):
-        '''
-        One-Hot encode integer labels
-        Use tf.data.Dataset.map(lambda x,y: (x, encoder.one_hot(y))) and pass in individual labels already encoded in int64 format.
-        '''
-        return tf.one_hot(label, depth=self.num_classes)
-
-    def __repr__(self):
-        return f'''Dataset Name: {self.dataset_name}
-        Num_samples: {self.num_samples}
-        Num_classes: {self.num_classes}'''
-
-    def _valid_eager_tensor(self, tensor, strict=False):
-        '''
-        If tensor IS an EagerTensor, return tensor.numpy(). 
-        if strict==True, and tensor IS NOT an EagerTensor, then raise AssertionError.
-        if strict==False, and tensor IS NOT an EagerTensor, then return tensor without modification 
-        '''
-        try:
-            assert isinstance(tensor, tf.python.framework.ops.EagerTensor)
-            tensor = tensor.numpy()
-        except AssertionError:
-            if strict:
-                raise AssertionError(f'Strict EagerTensor requirement failed assertion test in ClassLabelEncoder._valid_eager_tensor method')
-#         np_tensor = tensor.numpy()
-        return tensor
-
-
 
 
 def load_data_from_tensor_slices(data: pd.DataFrame,
@@ -167,7 +44,7 @@ def load_data_from_tensor_slices(data: pd.DataFrame,
 
 
 def load_pnas_dataset(threshold=100,
-                      validation_split=0.1,
+                      validation_split=0.2,
                       seed=None,
                       y='family'):
 
@@ -186,7 +63,7 @@ def extract_data(data: Dict[str,pd.DataFrame],
                  seed=None):
     
     subset_keys = list(data.keys())
-    class_encoder = ClassLabelEncoder(true_labels=data['train'][y], name='PNAS')
+    class_encoder = ClassLabelEncoder(y_true=data['train'][y], name='PNAS')
     
     extracted_data = {}
     for subset in subset_keys:
@@ -231,29 +108,72 @@ def load_and_extract_pnas(threshold=100,
     return data, class_encoder
 
 
-def get_unsupervised(val_split=0.2):
-    data, _ = load_and_extract_pnas(threshold=100,
-                                    validation_split=0.2,
-                                    seed=None,
-                                    x_col='path',
-                                    y_col='family')
+def get_unsupervised(batch_size: int=1,
+                     val_split=0.2,
+                     seed: int=None):
 
-    train_dataset = data['train'].map(lambda sample: sample['x']) #.batch(batch_size)
-    val_dataset = data['val'].map(lambda sample: sample['x']) #.batch(batch_size)
-    test_dataset = data['test'].map(lambda sample: sample['x']) #.batch(batch_size)
+    data, _ = load_and_extract_pnas(threshold=100,
+                                    validation_split=val_split,
+                                    seed=seed)
+
+    train_dataset = data['train'].map(lambda sample: sample['x']).batch(batch_size)
+    val_dataset = data['val'].map(lambda sample: sample['x']).batch(batch_size)
+    test_dataset = data['test'].map(lambda sample: sample['x']).batch(batch_size)
 
     return train_dataset, val_dataset, test_dataset
 
 
-def get_supervised(val_split=0.2):
-    data, _ = load_and_extract_pnas(threshold=100,
-                                    validation_split=0.2,
-                                    seed=None,
-                                    x_col='path',
-                                    y_col='family')
+def get_supervised(batch_size: int=1,
+                   val_split=0.2,
+                   seed: int=None,
+                   return_label_encoder: bool=False):
 
-    train_dataset = data['train'] #.batch(batch_size)
-    val_dataset = data['val'] #.batch(batch_size)
-    test_dataset = data['test'] #.batch(batch_size)
+    data, label_encoder = load_and_extract_pnas(threshold=100,
+                                    validation_split=val_split,
+                                    seed=seed)
+
+    train_dataset = data['train'].batch(batch_size)
+    val_dataset = data['val'].batch(batch_size)
+    test_dataset = data['test'].batch(batch_size)
+
+
+    if return_label_encoder:
+
+        return (train_dataset, val_dataset, test_dataset), label_encoder
 
     return train_dataset, val_dataset, test_dataset
+
+
+
+
+
+
+
+
+
+# def get_unsupervised(val_split=0.2, seed: int=None):
+#     data, _ = load_and_extract_pnas(threshold=100,
+#                                     validation_split=val_split,
+#                                     seed=seed,
+#                                     x_col='path',
+#                                     y_col='family')
+
+#     train_dataset = data['train'].map(lambda sample: sample['x']) #.batch(batch_size)
+#     val_dataset = data['val'].map(lambda sample: sample['x']) #.batch(batch_size)
+#     test_dataset = data['test'].map(lambda sample: sample['x']) #.batch(batch_size)
+
+#     return train_dataset, val_dataset, test_dataset
+
+
+# def get_supervised(val_split=0.2, seed: int=None):
+#     data, _ = load_and_extract_pnas(threshold=100,
+#                                     validation_split=val_split,
+#                                     seed=seed,
+#                                     x_col='path',
+#                                     y_col='family')
+
+#     train_dataset = data['train'] #.batch(batch_size)
+#     val_dataset = data['val'] #.batch(batch_size)
+#     test_dataset = data['test'] #.batch(batch_size)
+
+#     return train_dataset, val_dataset, test_dataset
