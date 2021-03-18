@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from pathlib import Path
 import wandb
 import json
@@ -82,9 +83,42 @@ def log_json_artifact(path, run=None, artifact_type='json_artifact', metadata=No
     
     
     
+class DatasetInfo:
+    csv_dataset_dir: str= '/media/data_cifs/projects/prj_fossils/data/processed_data/leavesdb-v0_3/catalog_files/' 
+    dataset_name: str=None
+    label_col: str=None
+    threshold: int=None
 
-    
-    
+    @property
+    def dataset_id(self) -> str:
+        # e.g. "extant_family_10"
+        return "_".join([self.dataset_name, self.label_col, str(self.threshold)])
+        
+
+    def __init__(self, dataset_name, label_col: str='family', threshold: str=0):
+        self.dataset_name=dataset_name
+        self.label_col=label_col
+        self.threshold=threshold
+        train_df = pd.read_csv(self.csv_dataset_dir + self.dataset_id + '_train.csv')
+        val_df = pd.read_csv(self.csv_dataset_dir + self.dataset_id + '_val.csv')
+        test_df = pd.read_csv(self.csv_dataset_dir + self.dataset_id + '_test.csv')
+
+        self.label_col = label_col
+        self.class_labels = sorted(set(train_df[label_col].values))
+        self.class_labels_str2int = {label:idx for idx, label in enumerate(self.class_labels)}
+        self.class_labels_int2str = {idx:label for label, idx in self.class_labels_str2int.items()}
+
+        self.train_df = train_df.assign(label = train_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.val_df = val_df.assign(label = val_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.test_df = test_df.assign(label = test_df[label_col].apply(lambda x: self.class_labels_str2int[x]))
+        self.NUM_CLASSES = len(self.class_labels)
+        self.NUM_SAMPLES = {'train':len(self.train_df),
+                            'val':len(self.val_df),
+                            'test':len(self.test_df)}
+
+    def as_dataframes(self):
+        return self.train_df, self.val_df, self.test_df
+
     
     
     
