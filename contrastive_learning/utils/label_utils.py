@@ -19,7 +19,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from typing import Union, List, Tuple
 from boltons.dictutils import OneToOne
-from contrastive_learning.data import stateful, data_utils
+from contrastive_learning.data import stateful
 from contrastive_learning.utils import data_utils
 
 
