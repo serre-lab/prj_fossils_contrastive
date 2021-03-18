@@ -190,9 +190,9 @@ def get_supervised(target_size=TARGET_SIZE,
                                     validation_split=val_split,
                                     seed=seed)
 
-    train_dataset = data['train']#.batch(batch_size)
-    val_dataset = data['val']#.batch(batch_size)
-    test_dataset = data['test']#.batch(batch_size)
+    train_dataset = data['train'].batch(batch_size)
+    val_dataset = data['val'].batch(batch_size)
+    test_dataset = data['test'].batch(batch_size)
 
 
     if return_label_encoder:
