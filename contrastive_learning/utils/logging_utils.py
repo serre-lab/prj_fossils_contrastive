@@ -259,7 +259,7 @@ class PredictionResults(stateful.Stateful):
                            model_path: str, 
                            class_encoder: Union[List, np.ndarray]=None,
                            run=None,
-                           metadata: Dict[Any]=None,
+                           metadata: Dict[str,Any]=None,
                            name: str=None):
         """
         Logs a trained model as an artifact to wandb
