@@ -22,7 +22,7 @@ def load_data_from_tensor_slices(data: pd.DataFrame,
                                  dtype=None):
     dtype = dtype or tf.uint8
     num_samples = data.shape[0]
-    num_classes = 
+    num_classes = len(set(data[y_col].values))
 
     def load_img(image_path):
         img = tf.io.read_file(image_path)
