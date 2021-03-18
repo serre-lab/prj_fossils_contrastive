@@ -126,9 +126,10 @@ def load_and_extract_pnas(threshold=100,
 
 def get_unsupervised(batch_size: int=1,
                      val_split=0.2,
+                     threshold=100,
                      seed: int=None):
 
-    data, _ = load_and_extract_pnas(threshold=100,
+    data, _ = load_and_extract_pnas(threshold=threshold,
                                     validation_split=val_split,
                                     seed=seed)
 
@@ -141,10 +142,11 @@ def get_unsupervised(batch_size: int=1,
 
 def get_supervised(batch_size: int=1,
                    val_split=0.2,
+                   threshold=100,
                    seed: int=None,
                    return_label_encoder: bool=False):
 
-    data, label_encoder = load_and_extract_pnas(threshold=100,
+    data, label_encoder = load_and_extract_pnas(threshold=threshold,
                                     validation_split=val_split,
                                     seed=seed)
 
