@@ -7,10 +7,12 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from functools import partial
 from sklearn.model_selection import train_test_split
+from typing import Tuple
 # from contrastive_learning.utils.data_utils import DatasetInfo
 from contrastive_learning.data import stateful
-from contrastive_learning.utils.image_utils import _clever_crop
+from contrastive_learning.utils.image_utils import clever_crop
 
+INPUT_SIZE = (256,256)
 
 class ExtantDatasetInfo(stateful.DatasetInfo):
 
@@ -24,38 +26,52 @@ def load(path, label):
     x = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
     return x, label
 
-def _normalize(x, y, size, num_classes):
-    x = _clever_crop(x, (size, size)) 
-    y = tf.one_hot(y, num_classes)
-    y = tf.cast(y, tf.float32)
-    
-    x = tf.clip_by_value(x, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
-    x = x * 2 - 1
-
-    return x, y
-
 def _remove_label(x, y):
     return x
 
-def _get_dataset(batch_size, 
-                 size,
+def _get_dataset(target_size: Tuple[int]=INPUT_SIZE,
+                 batch_size: int=1,
+                 grayscale: bool=False,
                  supervised=True,
                  input_col='processed_path',
                  label_col='label',
                  seed: int=None):
     ds_info = ExtantDatasetInfo()
+    num_classes=ds_info.NUM_CLASSES
 
     train_df, val_df, test_df = ds_info.as_dataframes()
 
     x_train, y_train = train_df[input_col], train_df[label_col]
     x_val, y_val = val_df[input_col], val_df[label_col]
     x_test, y_test = test_df[input_col], test_df[label_col]
+
+    _clever_crop = clever_crop(target_size=target_size,
+                               grayscale=grayscale)
+
     
-    normalize = partial(_normalize, size=size, num_classes=ds_info.NUM_CLASSES)
+    def _normalize(x, y, num_classes):
+        x = _clever_crop(x)
+        y = tf.one_hot(y, num_classes)
+        y = tf.cast(y, tf.float32)
+        
+        x = tf.clip_by_value(x, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
+        x = x * 2 - 1
+
+        return x, y
+
+    def normalize(num_classes):
+        return partial(_normalize, num_classes=num_classes)
+
     
-    ds_train = tf.data.Dataset.from_tensor_slices((x_train, y_train)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
-    ds_val = tf.data.Dataset.from_tensor_slices((x_val, y_val)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
-    ds_test  = tf.data.Dataset.from_tensor_slices((x_test, y_test)).map(load, num_parallel_calls=-1).map(normalize, num_parallel_calls=-1)
+    ds_train = tf.data.Dataset.from_tensor_slices((x_train, y_train)) \
+                              .map(load, num_parallel_calls=-1) \
+                              .map(normalize(num_classes), num_parallel_calls=-1)
+    ds_val = tf.data.Dataset.from_tensor_slices((x_val, y_val)) \
+                            .map(load, num_parallel_calls=-1) \
+                            .map(normalize(num_classes), num_parallel_calls=-1)
+    ds_test  = tf.data.Dataset.from_tensor_slices((x_test, y_test)) \
+                              .map(load, num_parallel_calls=-1)
+                              .map(normalize(num_classes), num_parallel_calls=-1)
 
     if not supervised:
         ds_train = ds_train.map(_remove_label)
