@@ -22,6 +22,7 @@ def load_data_from_tensor_slices(data: pd.DataFrame,
                                  dtype=None):
     dtype = dtype or tf.uint8
     num_samples = data.shape[0]
+    num_classes = 
 
     def load_img(image_path):
         img = tf.io.read_file(image_path)
@@ -41,9 +42,10 @@ def load_data_from_tensor_slices(data: pd.DataFrame,
         data = data.shuffle(num_samples,seed=seed, reshuffle_each_iteration=True)
 
     data = data.map(lambda example: {'x':tf.image.convert_image_dtype(load_img(example['x'])*255.0,dtype=dtype),
-                                     'y':example['y']}, num_parallel_calls=-1)
+                                     'y':tf.one_hot(example['y'], num_classes)}, num_parallel_calls=-1)
     return data
-
+# def _normalize(x, y):
+#     return x.astype('float32'), tf.one_hot(y[:,0], 10).numpy()
 
 def load_pnas_dataset(threshold=100,
                       validation_split=0.2,
