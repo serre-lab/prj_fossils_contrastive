@@ -101,6 +101,8 @@ def extract_data(data: Dict[str,pd.DataFrame],
     def normalize(num_classes):
         return partial(_normalize, num_classes=num_classes)
 
+    preprocess_func = normalize(num_classes)
+
     
     extracted_data = {}
     for subset in subset_keys:
@@ -120,7 +122,7 @@ def extract_data(data: Dict[str,pd.DataFrame],
         training = (subset=='train')
         extracted_data[subset] = load_data_from_tensor_slices(data=extracted_data[subset], training=training, seed=seed, x_col='path', y_col='label', dtype=tf.float32)
 
-        extracted_data[subset] = extracted_data[subset].map(normalize(num_classes))
+        extracted_data[subset] = extracted_data[subset].map(lambda sample: preprocess_func(sample['x'], sample['y']), num_parallel_calls=-1)
 
     return extracted_data, class_encoder
 
