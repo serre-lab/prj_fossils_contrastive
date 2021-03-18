@@ -90,8 +90,8 @@ def extract_data(data: Dict[str,pd.DataFrame],
 
     def _normalize(x, y, num_classes):
         x = _clever_crop(x)
-        y = tf.one_hot(y, num_classes) 
         y = tf.cast(y, tf.uint8)
+        y = tf.one_hot(y, num_classes) 
         
         x = tf.clip_by_value(x, 0, 255) / 255.0  # or img = tl.minmax_norm(img)
         x = x * 2 - 1
