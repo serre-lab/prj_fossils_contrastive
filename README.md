@@ -35,3 +35,17 @@ TBD (Added by Jacob 3-15-21)
 >> pip install -e .
 
 ```
+
+--------------
+## Make/Update Documentation
+
+requirements:
+```
+pip install sphinx
+```
+Run the command
+```
+cd "./docs/"
+make html
+
+```
