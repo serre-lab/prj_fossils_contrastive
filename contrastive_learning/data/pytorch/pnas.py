@@ -11,6 +11,7 @@ Author: Jacob A Rose
 from torchmetrics import Accuracy
 from flash import Task
 from torch import nn, optim, Generator
+import torch
 import flash
 from flash.vision import ImageClassificationData, ImageClassifier
 from torchvision import models
@@ -28,23 +29,25 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision.datasets import ImageFolder
-from typing import Callable, Optional, Any
+from typing import Callable, Optional, Any, Tuple
 from munch import Munch
-
+import matplotlib.pyplot as plt
+import torchvision
+# from torchvision.datasets.vision import VisionDataset
 # log the in- and output histograms of LightningModule's `forward`
 # monitor = ModuleDataMonitor()
 
-from .common import SubsetImageDataset, seed_worker
+from .common import LeavesDataset, TrainValSplitDataset, SubsetImageDataset, seed_worker
 
 
 available_datasets = {"PNAS_family_100_512": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_512",
-                      "PNAS_family_100_1024": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_1024"}
+                      "PNAS_family_100_1024": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_1024",
+                      "PNAS_family_100_1536": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_1536",
+                      "PNAS_family_100_2048": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_2048"}
 default_name = "PNAS_family_100_512"
 
 
-from torchvision.datasets.vision import VisionDataset
 
-# class LeavesDataset(VisionDataset):
 # class LeavesDataset(ImageFolder):
 
 #     splits_on_disk : Tuple[str]= ("train", "test")
@@ -67,8 +70,25 @@ from torchvision.datasets.vision import VisionDataset
 #         super().__init__(root=self.split_dir,
 #                          **kwargs)
 
+        
+#         self.train_dir = Path(self.available_datasets[self.name], 'train')
+#         self.test_dir = Path(self.available_datasets[self.name], 'test')
+        
+#         self._initialized = False        
 
+class PNASLeavesDataset(LeavesDataset):
+    
+    def __init__(self,
+                 name: str=default_name,
+                 split: str="train",
+                 **kwargs: Any
+                 ) -> None:
+        super().__init__(name, split, **kwargs)
+   
 
+    @property
+    def available_datasets(self):
+        return available_datasets
 
 
 
@@ -76,9 +96,6 @@ from torchvision.datasets.vision import VisionDataset
 class PNASLightningDataModule(pl.LightningDataModule):
     
     available_datasets = available_datasets
-
-    preprocess_cls = Preprocess
-    postprocess_cls = Postprocess
     worker_init_fn=seed_worker
     
     image_size = 224
@@ -88,13 +105,13 @@ class PNASLightningDataModule(pl.LightningDataModule):
     std = [0.229, 0.224, 0.225]
     
     def __init__(self,
-                 name: str=None,
+                 name: str=default_name,
                  batch_size: int=32,
                  val_split: float=0.2,
                  num_workers=0,
-                 pin_memory=False,
-                 shuffle_train: bool=True,
-                 seed: int=None):
+                 seed: int=None,
+                 debug: bool=False,
+                 normalize: bool=True):
         
         super().__init__()
         
@@ -102,54 +119,17 @@ class PNASLightningDataModule(pl.LightningDataModule):
         self.val_split = val_split
         
         assert (name in self.available_datasets) | (name is None)
-        self.name = name or default_name
+        self.name = name or default_name        
         
         self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.pin_memory = pin_memory
-        
+        self.num_workers = num_workers        
         self.val_split = val_split
-        self.shuffle_train = shuffle_train
         self.seed = seed
-        
-        self.train_dir = Path(self.available_datasets[self.name], 'train')
-        self.test_dir = Path(self.available_datasets[self.name], 'test')
-        
-        self._initialized = False        
+        self.__repr__ = TrainValSplitDataset.__repr__
+        self.debug = debug
+        self.shuffle = not debug
+        self.normalize = normalize
 
-    def init_dataset_stage(self,
-                           stage: str='fit',
-                           train_transform: Optional[Callable] = None,
-                           eval_transform: Optional[Callable] = None,
-                           target_transform: Optional[Callable] = None):
-        
-        
-        train_transform = train_transform # or self.default_train_transforms()
-        eval_transform = eval_transform # or self.default_eval_transforms()
-        target_transform = target_transform
-        
-        if stage == 'fit' or stage is None:
-            self.train_dataset = ImageFolder(root=self.train_dir, transform=train_transform, target_transform=target_transform)
-            self.classes = self.train_dataset.classes
-
-            val_split = self.val_split
-            num_train = len(self.train_dataset)
-            split_idx = (int(np.floor((1-val_split) * num_train)), int(np.floor(val_split * num_train)))
-            if self.seed is None:
-                generator = None
-            else:
-                generator = Generator().manual_seed(self.seed)
-
-            train_data, val_data = random_split(self.train_dataset, 
-                                                split_idx, # [split_idx[0], split_idx[1]], 
-                                                generator=generator)
-
-            self.train_dataset = SubsetImageDataset(train_data.dataset, train_data.indices)
-            self.val_dataset = SubsetImageDataset(val_data.dataset, val_data.indices)
-            
-        elif stage == 'test' or stage is None:
-            self.test_dataset = ImageFolder(root=self.test_dir, transform=eval_transform, target_transform=target_transform)
-        
         
     def setup(self,
               stage: str=None,
@@ -160,68 +140,152 @@ class PNASLightningDataModule(pl.LightningDataModule):
         if stage == 'fit' or stage is None:
             self.init_dataset_stage(stage='fit',
                                     train_transform=train_transform,
-                                    eval_transform=eval_transform,
-                                    target_transform=target_transform)
+                                    eval_transform=eval_transform)
         if stage == 'test' or stage is None:
             self.init_dataset_stage(stage='test',
-                                    eval_transform=eval_transform,
-                                    target_transform=target_transform)
+                                    eval_transform=eval_transform)
+
+        
+    def init_dataset_stage(self,
+                           stage: str='fit',
+                           train_transform: Optional[Callable] = None,
+                           eval_transform: Optional[Callable] = None):
+        
+        
+        self.train_transform = train_transform or self.default_train_transforms(augment=not self.debug,
+                                                                                normalize=self.normalize)
+        self.eval_transform = eval_transform or self.default_eval_transforms(normalize=self.normalize)
+        
+        if stage == 'fit' or stage is None:
+            train_data = PNASLeavesDataset(self.name,
+                                           split="train",
+                                           transform=self.train_transform)
+            self.classes = train_data.classes
+            self.train_dataset, self.val_dataset = TrainValSplitDataset.train_val_split(train_data, val_split=self.val_split, seed=self.seed)
+        elif stage == 'test' or stage is None:
+            self.test_dataset = LeavesDataset(self.name,
+                                              split="test",
+                                              transform=self.eval_transform)
+            
+    def get_dataloader(self, stage: str='train'):
+        if stage=='train': return self.train_dataloader()
+        if stage=='val': return self.val_dataloader()
+        if stage=='test': return self.test_dataloader()
 
     def train_dataloader(self):
         train_loader = DataLoader(self.train_dataset,
                                   num_workers=self.num_workers,
-                                  pin_memory=self.pin_memory,
                                   batch_size=self.batch_size,
-                                  shuffle=self.shuffle_train)
+                                  pin_memory=True,
+                                  shuffle=self.shuffle)
         return train_loader
         
     def val_dataloader(self):
         val_loader = DataLoader(self.val_dataset,
                                 num_workers=self.num_workers,
-                                pin_memory=self.pin_memory,
                                 batch_size=self.batch_size*10,
-                                shuffle=False)
+                                pin_memory=True)
         return val_loader
 
     def test_dataloader(self):
         test_loader = DataLoader(self.test_dataset,
                                  num_workers=self.num_workers,
-                                 pin_memory=self.pin_memory,
                                  batch_size=self.batch_size*10,
-                                 shuffle=False)
+                                 pin_memory=True)
         return test_loader
     
     
-    @staticmethod
-    def default_train_transforms():
-        image_size = PNASLightningDataModule.image_size
-        image_buffer_size = PNASLightningDataModule.image_buffer_size
-        mean, std = PNASLightningDataModule.mean, PNASLightningDataModule.std
-        return transforms.Compose([transforms.Resize(image_size+image_buffer_size),
-                                   transforms.RandomHorizontalFlip(p=0.5),
-                                   transforms.RandomCrop(image_size),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize(mean, std)])
-#         return {
-#             "pre_tensor_transform": transforms.Compose([transforms.Resize(image_size+image_buffer_size),
-#                                                         transforms.RandomHorizontalFlip(p=0.5),
-#                                                         transforms.RandomCrop(image_size)]),
-#             "to_tensor_transform": transforms.ToTensor(),
-#             "post_tensor_transform": transforms.Normalize(mean, std),
-#         }
-    ##############
-    @staticmethod
-    def default_eval_transforms():
-        image_size = PNASLightningDataModule.image_size
-        image_buffer_size = PNASLightningDataModule.image_buffer_size
-        mean, std = PNASLightningDataModule.mean, PNASLightningDataModule.std
-        return transforms.Compose([transforms.Resize(image_size+image_buffer_size),
-                                   transforms.CenterCrop(image_size),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize(mean, std)])
+    @classmethod
+    def default_train_transforms(cls, normalize: bool=True, augment:bool=True):
+        if augment:
+            return transforms.Compose([transforms.Resize(cls.image_size+cls.image_buffer_size),
+                                       transforms.RandomHorizontalFlip(p=0.5),
+                                       transforms.RandomCrop(cls.image_size),
+                                       transforms.ToTensor(),
+                                       transforms.Normalize(cls.mean, cls.std)])
+        return cls.default_eval_transforms(normalize=normalize)
+    @classmethod
+    def default_eval_transforms(cls, normalize: bool=True):
+        transform_list = [transforms.Resize(cls.image_size+cls.image_buffer_size),
+                          transforms.CenterCrop(cls.image_size),
+                          transforms.ToTensor()]
+        if normalize:
+            transform_list.append(transforms.Normalize(cls.mean, cls.std))
+            
+        return transforms.Compose(transform_list)
+
+    
+    def get_batch(self, stage: str='train', batch_idx: int=0):
+        data = self.get_dataloader(stage)
+        for i, (x, y) in enumerate(iter(data)):
+            if i == batch_idx:
+                return x, y
+        
+    
+    def show_batch(self, stage: str='train', batch_idx: int=0):
+#         data = self.get_dataloader(stage)
+#         x, y = next(iter(data))
+        self.get_batch(stage=stage, batch_idx=batch_idx)
+        batch_size = x.shape[0]
+        
+        fig, ax = plt.subplots(1,1, figsize=(24,24))
+        grid_img = torchvision.utils.make_grid(x, nrow=int(np.ceil(batch_size/7)))
+        
+        img_min, img_max = grid_img.min(), grid_img.max()
+        if torch.argmin(torch.Tensor(grid_img.shape)) == 0:
+            grid_img = grid_img.permute(1,2,0)
+        
+        plt.imshow(grid_img, cmap='gray', vmin = img_min, vmax = img_max)
+        plt.colorbar()
+        plt.suptitle(f'{stage} batch')
+        return fig, ax
+
 
     
     
+#     @classmethod
+#     def default_train_transforms(cls, augment:bool=True):
+#         image_size = PNASLightningDataModule.image_size
+#         image_buffer_size = PNASLightningDataModule.image_buffer_size
+#         mean, std = PNASLightningDataModule.mean, PNASLightningDataModule.std
+#         if augment:
+#             return transforms.Compose([transforms.Resize(image_size+image_buffer_size),
+#                                        transforms.RandomHorizontalFlip(p=0.5),
+#                                        transforms.RandomCrop(image_size),
+#                                        transforms.ToTensor(),
+#                                        transforms.Normalize(mean, std)])
+#         return cls.default_eval_transforms()
+#     @classmethod
+#     def default_eval_transforms(cls):
+#         image_size = PNASLightningDataModule.image_size
+#         image_buffer_size = PNASLightningDataModule.image_buffer_size
+#         mean, std = PNASLightningDataModule.mean, PNASLightningDataModule.std
+#         return transforms.Compose([transforms.Resize(image_size+image_buffer_size),
+#                                    transforms.CenterCrop(image_size),
+#                                    transforms.ToTensor(),
+#                                    transforms.Normalize(mean, std)])
+
+    
+    
+#             num_train = len(train_data)
+#             split_idx = (int(np.floor((1-self.val_split) * num_train)), 
+#                          int(np.floor(self.val_split * num_train)))
+#             if self.seed is None:
+#                 generator = None
+#             else:
+#                 generator = Generator().manual_seed(self.seed)
+
+#             train_data, val_data = random_split(train_data,
+#                                                 split_idx, # [split_idx[0], split_idx[1]], 
+#                                                 generator=generator)
+
+#             self.train_dataset = SubsetImageDataset(train_data.dataset, train_data.indices)
+#             self.val_dataset = SubsetImageDataset(val_data.dataset, val_data.indices)
+            
+#         elif stage == 'test' or stage is None:
+#             self.test_dataset = ImageFolder(root=self.test_dir, transform=eval_transform, target_transform=target_transform)
+        
+            
     
     
 #     def train_dataset(self,
