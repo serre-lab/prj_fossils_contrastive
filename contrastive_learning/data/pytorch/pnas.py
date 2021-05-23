@@ -9,11 +9,11 @@ Author: Jacob A Rose
 """
 
 from torchmetrics import Accuracy
-from flash import Task
+# from flash import Task
 from torch import nn, optim, Generator
 import torch
-import flash
-from flash.vision import ImageClassificationData, ImageClassifier
+# import flash
+# from flash.vision import ImageClassificationData, ImageClassifier
 from torchvision import models
 import pytorch_lightning as pl
 from typing import List, Callable, Dict, Union, Type, Optional
@@ -33,11 +33,17 @@ from typing import Callable, Optional, Any, Tuple
 from munch import Munch
 import matplotlib.pyplot as plt
 import torchvision
+import os
 # from torchvision.datasets.vision import VisionDataset
 # log the in- and output histograms of LightningModule's `forward`
 # monitor = ModuleDataMonitor()
 
-from .common import LeavesDataset, TrainValSplitDataset, SubsetImageDataset, seed_worker
+from .common import (LeavesDataset, 
+                     LeavesLightningDataModule,
+                     TrainValSplitDataset, 
+                     SubsetImageDataset,
+                     seed_worker)
+
 
 
 available_datasets = {"PNAS_family_100_512": "/media/data_cifs/projects/prj_fossils/data/processed_data/data_splits/PNAS_family_100_512",
@@ -48,42 +54,21 @@ default_name = "PNAS_family_100_512"
 
 
 
-# class LeavesDataset(ImageFolder):
-
-#     splits_on_disk : Tuple[str]= ("train", "test")
-    
-#     def __init__(
-#             self,
-#             name: str=default_name,
-#             split: str="train",
-#             **kwargs: Any
-#             ) -> None:
-
-#         assert split in self.splits_on_disk
-#         assert name in available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{available_datasets.keys()}"
-        
-#         self.name = name
-#         self.split = split
-#         self.dataset_dir = Path(available_datasets[name])
-#         self.split_dir = self.dataset_dir / self.split
-        
-#         super().__init__(root=self.split_dir,
-#                          **kwargs)
-
-        
-#         self.train_dir = Path(self.available_datasets[self.name], 'train')
-#         self.test_dir = Path(self.available_datasets[self.name], 'test')
-        
-#         self._initialized = False        
 
 class PNASLeavesDataset(LeavesDataset):
     
     def __init__(self,
                  name: str=default_name,
                  split: str="train",
+                 dataset_dir: Optional[str]=None,
+                 return_paths: bool=False,
                  **kwargs: Any
                  ) -> None:
-        super().__init__(name, split, **kwargs)
+        super().__init__(name,
+                         split,
+                         dataset_dir=dataset_dir,
+                         return_paths=return_paths, 
+                         **kwargs)
    
 
     @property
@@ -92,14 +77,14 @@ class PNASLeavesDataset(LeavesDataset):
 
 
 
-
-class PNASLightningDataModule(pl.LightningDataModule):
+class PNASLightningDataModule(LeavesLightningDataModule):
     
-    available_datasets = available_datasets
-    worker_init_fn=seed_worker
-    
+    DatasetConstructor = PNASLeavesDataset
+    splits_on_disk : Tuple[str] = ("train", "val", "test") #DatasetConstructor.splits_on_disk
+    available_splits: Tuple[str] = ("train", "val", "test")
+        
     image_size = 224
-    target_size = (224, 224)
+#     target_size = (224, 224)
     image_buffer_size = 32
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -111,136 +96,240 @@ class PNASLightningDataModule(pl.LightningDataModule):
                  num_workers=0,
                  seed: int=None,
                  debug: bool=False,
-                 normalize: bool=True):
+                 normalize: bool=True,
+                 image_size: Union[int,str] = None,
+                 channels: int=None,
+                 dataset_dir: Optional[str]=None,
+                 return_paths: bool=False,
+                 predict_on_split: str="val",
+                 **kwargs):
         
-        super().__init__()
+        if image_size == 'auto':
+            try:
+                image_size = int(self.name.split('_')[-1])
+            except ValueError:
+                image_size = self.image_size        
         
-        assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be in the range [0, 1]."
-        self.val_split = val_split
+        super().__init__(name=name,
+                         batch_size=batch_size,
+                         val_split=val_split,
+                         num_workers=num_workers,
+                         seed=seed,
+                         debug=debug,
+                         normalize=normalize,
+                         image_size=image_size,
+                         channels=channels,
+                         dataset_dir=dataset_dir,
+                         return_paths=return_paths,
+                         predict_on_split=predict_on_split,
+                         **kwargs)
+    
+#     def get_dataset_split(self, split: str) -> LeavesDataset:
+#         if split in ("train","val"):
+#             train_dataset = self.DatasetConstructor(self.name,
+#                                                     split="train",
+#                                                     dataset_dir=self.dataset_dir,
+#                                                     return_paths=self.return_paths)
+#             if "val" in os.listdir(train_dataset.dataset_dir):
+#                 val_dataset = self.DatasetConstructor(self.name,
+#                                                    split="val",
+#                                                    dataset_dir=self.dataset_dir,
+#                                                    return_paths=self.return_paths)
+#             elif self.val_split:
+#                 train_dataset, val_dataset = TrainValSplitDataset.train_val_split(train_dataset,
+#                                                                                   val_split=self.val_split,
+#                                                                                   seed=self.seed)
+#             if split == "train":
+#                 return train_dataset
+#             else:
+#                 return val_dataset
+#         elif split == "test":
+#             test_dataset = self.DatasetConstructor(self.name,
+#                                                    split="test",
+#                                                    dataset_dir=self.dataset_dir,
+#                                                    return_paths=self.return_paths)
+#             return test_dataset
+#         else:
+#             raise Exception(f"'split' argument must be a string pertaining to one of the following: {self.available_splits}")
         
-        assert (name in self.available_datasets) | (name is None)
-        self.name = name or default_name        
+    
+    @property
+    def available_datasets(self):
+        return available_datasets
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+# class PNASLightningDataModule(pl.LightningDataModule):
+    
+#     available_datasets = available_datasets
+#     worker_init_fn=seed_worker
+    
+#     image_size = 224
+#     target_size = (224, 224)
+#     image_buffer_size = 32
+#     mean = [0.485, 0.456, 0.406]
+#     std = [0.229, 0.224, 0.225]
+    
+#     def __init__(self,
+#                  name: str=default_name,
+#                  batch_size: int=32,
+#                  val_split: float=0.2,
+#                  num_workers=0,
+#                  seed: int=None,
+#                  debug: bool=False,
+#                  normalize: bool=True):
+#         
+#         super().__init__()
         
-        self.batch_size = batch_size
-        self.num_workers = num_workers        
-        self.val_split = val_split
-        self.seed = seed
-        self.__repr__ = TrainValSplitDataset.__repr__
-        self.debug = debug
-        self.shuffle = not debug
-        self.normalize = normalize
+#         assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be in the range [0, 1]."
+#         self.val_split = val_split
+        
+#         assert (name in self.available_datasets) | (name is None)
+#         self.name = name or default_name        
+        
+#         self.batch_size = batch_size
+#         self.num_workers = num_workers        
+#         self.val_split = val_split
+#         self.seed = seed
+#         self.__repr__ = TrainValSplitDataset.__repr__
+#         self.debug = debug
+#         self.shuffle = not debug
+#         self.normalize = normalize
 
         
-    def setup(self,
-              stage: str=None,
-              train_transform: Optional[Callable] = None,
-              eval_transform: Optional[Callable] = None,
-              target_transform: Optional[Callable] = None
-              ):
-        if stage == 'fit' or stage is None:
-            self.init_dataset_stage(stage='fit',
-                                    train_transform=train_transform,
-                                    eval_transform=eval_transform)
-        if stage == 'test' or stage is None:
-            self.init_dataset_stage(stage='test',
-                                    eval_transform=eval_transform)
+#     def setup(self,
+#               stage: str=None,
+#               train_transform: Optional[Callable] = None,
+#               eval_transform: Optional[Callable] = None,
+#               target_transform: Optional[Callable] = None
+#               ):
+#         if stage == 'fit' or stage is None:
+#             self.init_dataset_stage(stage='fit',
+#                                     train_transform=train_transform,
+#                                     eval_transform=eval_transform)
+#         if stage == 'test' or stage is None:
+#             self.init_dataset_stage(stage='test',
+#                                     eval_transform=eval_transform)
 
         
-    def init_dataset_stage(self,
-                           stage: str='fit',
-                           train_transform: Optional[Callable] = None,
-                           eval_transform: Optional[Callable] = None):
+#     def init_dataset_stage(self,
+#                            stage: str='fit',
+#                            train_transform: Optional[Callable] = None,
+#                            eval_transform: Optional[Callable] = None):
         
         
-        self.train_transform = train_transform or self.default_train_transforms(augment=not self.debug,
-                                                                                normalize=self.normalize)
-        self.eval_transform = eval_transform or self.default_eval_transforms(normalize=self.normalize)
+#         self.train_transform = train_transform or self.default_train_transforms(augment=not self.debug,
+#                                                                                 normalize=self.normalize)
+#         self.eval_transform = eval_transform or self.default_eval_transforms(normalize=self.normalize)
         
-        if stage == 'fit' or stage is None:
-            train_data = PNASLeavesDataset(self.name,
-                                           split="train",
-                                           transform=self.train_transform)
-            self.classes = train_data.classes
-            self.train_dataset, self.val_dataset = TrainValSplitDataset.train_val_split(train_data, val_split=self.val_split, seed=self.seed)
-        elif stage == 'test' or stage is None:
-            self.test_dataset = LeavesDataset(self.name,
-                                              split="test",
-                                              transform=self.eval_transform)
+#         if stage == 'fit' or stage is None:
+#             train_data = PNASLeavesDataset(self.name,
+#                                            split="train",
+#                                            transform=self.train_transform)
+#             self.classes = train_data.classes
+#             self.train_dataset, self.val_dataset = TrainValSplitDataset.train_val_split(train_data, val_split=self.val_split, seed=self.seed)
+#         elif stage == 'test' or stage is None:
+#             self.test_dataset = LeavesDataset(self.name,
+#                                               split="test",
+#                                               transform=self.eval_transform)
             
-    def get_dataloader(self, stage: str='train'):
-        if stage=='train': return self.train_dataloader()
-        if stage=='val': return self.val_dataloader()
-        if stage=='test': return self.test_dataloader()
+#     def get_dataloader(self, stage: str='train'):
+#         if stage=='train': return self.train_dataloader()
+#         if stage=='val': return self.val_dataloader()
+#         if stage=='test': return self.test_dataloader()
 
-    def train_dataloader(self):
-        train_loader = DataLoader(self.train_dataset,
-                                  num_workers=self.num_workers,
-                                  batch_size=self.batch_size,
-                                  pin_memory=True,
-                                  shuffle=self.shuffle)
-        return train_loader
+#     def train_dataloader(self):
+#         train_loader = DataLoader(self.train_dataset,
+#                                   num_workers=self.num_workers,
+#                                   batch_size=self.batch_size,
+#                                   pin_memory=True,
+#                                   shuffle=self.shuffle)
+#         return train_loader
         
-    def val_dataloader(self):
-        val_loader = DataLoader(self.val_dataset,
-                                num_workers=self.num_workers,
-                                batch_size=self.batch_size*10,
-                                pin_memory=True)
-        return val_loader
+#     def val_dataloader(self):
+#         val_loader = DataLoader(self.val_dataset,
+#                                 num_workers=self.num_workers,
+#                                 batch_size=self.batch_size*10,
+#                                 pin_memory=True)
+#         return val_loader
 
-    def test_dataloader(self):
-        test_loader = DataLoader(self.test_dataset,
-                                 num_workers=self.num_workers,
-                                 batch_size=self.batch_size*10,
-                                 pin_memory=True)
-        return test_loader
+#     def test_dataloader(self):
+#         test_loader = DataLoader(self.test_dataset,
+#                                  num_workers=self.num_workers,
+#                                  batch_size=self.batch_size*10,
+#                                  pin_memory=True)
+#         return test_loader
     
     
-    @classmethod
-    def default_train_transforms(cls, normalize: bool=True, augment:bool=True):
-        if augment:
-            return transforms.Compose([transforms.Resize(cls.image_size+cls.image_buffer_size),
-                                       transforms.RandomHorizontalFlip(p=0.5),
-                                       transforms.RandomCrop(cls.image_size),
-                                       transforms.ToTensor(),
-                                       transforms.Normalize(cls.mean, cls.std)])
-        return cls.default_eval_transforms(normalize=normalize)
-    @classmethod
-    def default_eval_transforms(cls, normalize: bool=True):
-        transform_list = [transforms.Resize(cls.image_size+cls.image_buffer_size),
-                          transforms.CenterCrop(cls.image_size),
-                          transforms.ToTensor()]
-        if normalize:
-            transform_list.append(transforms.Normalize(cls.mean, cls.std))
+#     @classmethod
+#     def default_train_transforms(cls, normalize: bool=True, augment:bool=True):
+#         if augment:
+#             return transforms.Compose([transforms.Resize(cls.image_size+cls.image_buffer_size),
+#                                        transforms.RandomHorizontalFlip(p=0.5),
+#                                        transforms.RandomCrop(cls.image_size),
+#                                        transforms.ToTensor(),
+#                                        transforms.Normalize(cls.mean, cls.std)])
+#         return cls.default_eval_transforms(normalize=normalize)
+#     @classmethod
+#     def default_eval_transforms(cls, normalize: bool=True):
+#         transform_list = [transforms.Resize(cls.image_size+cls.image_buffer_size),
+#                           transforms.CenterCrop(cls.image_size),
+#                           transforms.ToTensor()]
+#         if normalize:
+#             transform_list.append(transforms.Normalize(cls.mean, cls.std))
             
-        return transforms.Compose(transform_list)
+#         return transforms.Compose(transform_list)
 
     
-    def get_batch(self, stage: str='train', batch_idx: int=0):
-        data = self.get_dataloader(stage)
-        for i, (x, y) in enumerate(iter(data)):
-            if i == batch_idx:
-                return x, y
-        
-    
-    def show_batch(self, stage: str='train', batch_idx: int=0):
+#     def get_batch(self, stage: str='train', batch_idx: int=0):
 #         data = self.get_dataloader(stage)
-#         x, y = next(iter(data))
-        self.get_batch(stage=stage, batch_idx=batch_idx)
-        batch_size = x.shape[0]
+#         for i, (x, y) in enumerate(iter(data)):
+#             if i == batch_idx:
+#                 return x, y
         
-        fig, ax = plt.subplots(1,1, figsize=(24,24))
-        grid_img = torchvision.utils.make_grid(x, nrow=int(np.ceil(batch_size/7)))
+    
+#     def show_batch(self, stage: str='train', batch_idx: int=0):
+# #         data = self.get_dataloader(stage)
+# #         x, y = next(iter(data))
+#         self.get_batch(stage=stage, batch_idx=batch_idx)
+#         batch_size = x.shape[0]
         
-        img_min, img_max = grid_img.min(), grid_img.max()
-        if torch.argmin(torch.Tensor(grid_img.shape)) == 0:
-            grid_img = grid_img.permute(1,2,0)
+#         fig, ax = plt.subplots(1,1, figsize=(24,24))
+#         grid_img = torchvision.utils.make_grid(x, nrow=int(np.ceil(batch_size/7)))
         
-        plt.imshow(grid_img, cmap='gray', vmin = img_min, vmax = img_max)
-        plt.colorbar()
-        plt.suptitle(f'{stage} batch')
-        return fig, ax
+#         img_min, img_max = grid_img.min(), grid_img.max()
+#         if torch.argmin(torch.Tensor(grid_img.shape)) == 0:
+#             grid_img = grid_img.permute(1,2,0)
+        
+#         plt.imshow(grid_img, cmap='gray', vmin = img_min, vmax = img_max)
+#         plt.colorbar()
+#         plt.suptitle(f'{stage} batch')
+#         return fig, ax
 
 
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
 #     @classmethod
@@ -319,64 +408,7 @@ class PNASLightningDataModule(pl.LightningDataModule):
 #                                 eval_transform=eval_transform,
 #                                 target_transform=target_transform)
     
-    
-    
-    
-    
-    
-    
-    
-    #         return {
-#             "pre_tensor_transform": transforms.Compose([transforms.Resize(image_size+image_buffer_size),
-#                                                         transforms.CenterCrop(image_size)]),
-#             "to_tensor_transform": transforms.ToTensor(),
-#             "post_tensor_transform": transforms.Normalize(mean, std)
-#         }
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-#     # we define a separate DataLoader for each of train/val/test
-#     def train_dataloader(self):
-#         train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size)
-#         return train_dataloader
-
-#     def val_dataloader(self):
-#         val_dataloader = DataLoader(self.val_dataset, batch_size=10 * self.batch_size)
-#         return val_dataloader
-
-#     def test_dataloader(self):
-#         test_dataloader = DataLoader(self.test_dataset, batch_size=10 * self.batch_size)
-#         return test_dataloader
-        
-        
-        
-
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         
         
 #         self._initialized = True
@@ -623,18 +655,14 @@ class PNASLightningDataModule(pl.LightningDataModule):
     
 
     
+########################################################    
     
+# if __name__ == "__main__":
     
-    
-    
-    
-    
-if __name__ == "__main__":
-    
-    seed = 873957
-    val_split = 0.2
-    batch_size = 16
-    name = "PNAS_family_100_512"
+#     seed = 873957
+#     val_split = 0.2
+#     batch_size = 16
+#     name = "PNAS_family_100_512"
     
 #     datamodule = PNASImageDataModule(name=name,
 #                         batch_size=batch_size,
