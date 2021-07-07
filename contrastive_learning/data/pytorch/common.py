@@ -15,7 +15,7 @@ Author: Jacob A Rose
 from torchvision.datasets import folder, vision, ImageFolder
 from torch.utils.data import Dataset, Subset, random_split, DataLoader
 from typing import Sequence
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,22 +32,6 @@ import wandb
 __all__ = ['LeavesDataset', 'LeavesLightningDataModule', 'seed_worker', 'TrainValSplitDataset', 'SubsetImageDataset']
 
 
-class CommonLeavesError(ValueError):
-    
-    def __init__(self, obj: str=None, msg: str=None):
-        if msg is None:
-            # Set some default useful error message
-            msg = "An error occured with Leaves object:\n %s" % str(obj)
-        super().__init__(msg)
-        self.obj = obj
-
-class DataStageError(CommonLeavesError):
-    def __init__(self, requested_stage, valid_stages):
-        msg = f"'{requested_stage}' is not in the set of valid stages, must provide one of the following:\n     "
-        msg += str(valid_stages)
-        super().__init__(msg)
-
-
 
 class LeavesDataset(ImageFolder):
 
@@ -62,6 +46,7 @@ class LeavesDataset(ImageFolder):
             data_df: pd.DataFrame=None,
             **kwargs: Any
             ) -> None:
+        self.imgs, self.samples, self.targets = [], [], []
 
 #         assert split in self.splits_on_disk
         
@@ -75,19 +60,23 @@ class LeavesDataset(ImageFolder):
             name = Path(self.dataset_dir).stem
             if name not in self.available_datasets:
                 self.available_datasets[name] = self.dataset_dir
-        else:
+        elif isinstance(name, str):
             assert name in self.available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{self.available_datasets.keys()}"
             self.dataset_dir = Path(self.available_datasets[name])
+        else:
+            print(f'Warning, no values for name or dataset_dir provided to constructor.')
+            self.dataset_dir = dataset_dir
             
         self.name = name
         self.split = split
-        self.split_dir = self.dataset_dir / self.split
+        if isinstance(self.dataset_dir, (str, Path)):
+            self.split_dir = self.dataset_dir / self.split
+            super().__init__(root=self.split_dir,
+                             **kwargs)
         self.return_paths = return_paths
-        super().__init__(root=self.split_dir,
-                         **kwargs)
 
     @classmethod
-    def from_wandb_table(cls, table: wandb.data_types.Table):
+    def from_wandb_table(cls, table: wandb.data_types.Table) -> "LeavesDataset":
         data_df = pd.DataFrame(data=table.data, columns=table.columns)
         data_df = data_df.assign(image=data_df.image.apply(lambda x: x._image))
         return data_df
@@ -161,10 +150,11 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                  batch_size: int=32,
                  val_split: float=0.2,
                  num_workers=0,
+                 pin_memory: bool=False,
                  seed: int=None,
                  debug: bool=False,
                  normalize: bool=True,
-                 image_size: int = None,
+                 image_size: Union[int,str] = None,
                  channels: int=None,
                  dataset_dir: Optional[str]=None,
                  return_paths: bool=False,
@@ -185,6 +175,7 @@ class LeavesLightningDataModule(pl.LightningDataModule):
             val_split (float, optional): Defaults to 0.2.
                 Must be within [0.0, 1.0]
             num_workers (int, optional): Defaults to 0.
+            pin_memory (bool, optional): Defaults to False.
             seed (int, optional): Defaults to None.
                 This must be set for reproducable train/val splits.
             debug (bool, optional): Defaults to False.
@@ -192,7 +183,8 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                 Purpose is to allow removing as much randomness as possible during runtime. Augmentations are removed by applying the eval_transforms to all subsets.
             normalize (bool, optional): Defaults to True.
                 If True, applies mean and std normalization to images at the end of all sequences of transforms. Base class has default values of mean = [0.5, 0.5, 0.5] and std = [1.0, 1.0, 1.0], which results in normalization becoming an identity transform. Subclasses should provide custom overrides for these values. E.g. imagenet  for example
-            image_size (int, optional): Defaults to 224 if None.
+            image_size (Union[int,str], optional): Defaults to 224 if None.
+                if 'auto', extract image_size from dataset name (e.g. "Exant_Leaves_family_10_1024 -> image_size=1024")
             channels (int, optional): Defaults to 3 if None.
             return_paths (bool, optional): Defaults to False.
                 If True, internal datasets return tuples of length 3 containing (img, label, path). If False, return tuples of length 2 containing (img, label).
@@ -205,19 +197,28 @@ class LeavesLightningDataModule(pl.LightningDataModule):
             if name not in self.available_datasets:
                 self.available_datasets[name] = self.dataset_dir
         else:
-            assert name in self.available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{self.available_datasets.keys()}"
+            assert name in self.available_datasets, \
+                f"""{name} is not in the set of available datasets. Please try one of the following: 
+                    \n{self.available_datasets.keys()}"""
             self.dataset_dir = Path(self.available_datasets[name])
         
         
         if val_split is not None:
-            assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be in the range [0, 1]."
+            assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be either None, or a float in the range [0, 1]."
         self.val_split = val_split
         
-#         assert (name in self.available_datasets) | (name is None)
-#         self.name = name or default_name        
+        self.name = name or default_name
+    
+        if image_size == 'auto':
+            try:
+                image_size = int(self.name.split('_')[-1])
+            except ValueError:
+                image_size = self.image_size
+    
         
         self.batch_size = batch_size
-        self.num_workers = num_workers        
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
         self.val_split = val_split
         self.seed = seed
         self.debug = debug
@@ -299,13 +300,17 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                                                     return_paths=self.return_paths)
             if "val" in os.listdir(train_dataset.dataset_dir):
                 val_dataset = self.DatasetConstructor(self.name,
-                                                   split="val",
-                                                   dataset_dir=self.dataset_dir,
-                                                   return_paths=self.return_paths)
+                                                      split="val",
+                                                      dataset_dir=self.dataset_dir,
+                                                      return_paths=self.return_paths)
             elif self.val_split:
                 train_dataset, val_dataset = TrainValSplitDataset.train_val_split(train_dataset,
                                                                                   val_split=self.val_split,
                                                                                   seed=self.seed)
+            else:
+                print(f'[ERROR] Must provide either a `val` subdir in self.dataset_dir = {self.dataset_dir}, or a non-zero value for `val_split`.')
+                raise
+                
             if split == "train":
                 return train_dataset
             else:
@@ -319,11 +324,12 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         
         elif split == "predict":
             if self.predict_on_split == "val":
-                if not self._is_fit_setup:
-                    self.setup(stage="fit")
+#                 if not self._is_fit_setup:
+                self.setup(stage="fit")
             elif self.predict_on_split == "test":
-                if not self._is_test_setup:
-                    self.setup(stage="test")
+#                 if not self._is_test_setup:
+                self.setup(stage="test")
+                print('returning the test set for prediction~')
             predict_dataset = self.get_dataset_split(split=self.predict_on_split)
             return predict_dataset
         else:
@@ -358,22 +364,23 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         train_loader = DataLoader(self.train_dataset,
                                   num_workers=self.num_workers,
                                   batch_size=self.batch_size,
-                                  pin_memory=True,
-                                  shuffle=self.shuffle)
+                                  pin_memory=self.pin_memory,
+                                  shuffle=self.shuffle,
+                                  drop_last=True)
         return train_loader
         
     def val_dataloader(self):
         val_loader = DataLoader(self.val_dataset,
                                 num_workers=self.num_workers,
                                 batch_size=self.batch_size,
-                                pin_memory=True)
+                                pin_memory=self.pin_memory)
         return val_loader
 
     def test_dataloader(self):
         test_loader = DataLoader(self.test_dataset,
                                  num_workers=self.num_workers,
                                  batch_size=self.batch_size,
-                                 pin_memory=True)
+                                 pin_memory=self.pin_memory)
         return test_loader
 
     
@@ -381,34 +388,14 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         predict_loader = DataLoader(self.predict_dataset,
                                 num_workers=self.num_workers,
                                 batch_size=self.batch_size,
-                                pin_memory=True,
-                                shuffle=True)
+                                pin_memory=self.pin_memory)
         return predict_loader
 
-    
-#     @classmethod
-#     def default_train_transforms(cls, normalize: bool=True, augment:bool=True):
-#         """Subclasses can override this or user can provide custom transforms at runtime"""
-#         if augment:
-#             return transforms.Compose([transforms.Resize(cls.image_size+cls.image_buffer_size),
-#                                        transforms.RandomHorizontalFlip(p=0.5),
-#                                        transforms.RandomCrop(cls.image_size),
-# #                                        ImageOps.invert,
-#                                        transforms.ToTensor(),
-#                                        transforms.Normalize(mean=cls.mean, std=cls.std)])
-#         return cls.default_eval_transforms(normalize=normalize)
-#     @classmethod
-#     def default_eval_transforms(cls, normalize: bool=True):
-#         """Subclasses can override this or user can provide custom transforms at runtime"""
-#         transform_list = [transforms.Resize(cls.image_size+cls.image_buffer_size),
-#                           transforms.CenterCrop(cls.image_size),
-# #                           ImageOps.invert,
-#                           transforms.ToTensor()]
-#         if normalize:
-#             transform_list.append(transforms.Normalize(mean=cls.mean, std=cls.std))
-            
-#         return transforms.Compose(transform_list)
 
+    @property
+    def normalize_transform(self):
+        return transforms.Normalize(mean=self.mean, 
+                                    std=self.std)
 
     def default_train_transforms(self, normalize: bool=True, augment:bool=True):
         """Subclasses can override this or user can provide custom transforms at runtime"""
@@ -483,10 +470,24 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         return content
 
 
+#######################################################
 
 
 
+class CommonLeavesError(ValueError):
+    
+    def __init__(self, obj: str=None, msg: str=None):
+        if msg is None:
+            # Set some default useful error message
+            msg = "An error occured with Leaves object:\n %s" % str(obj)
+        super().__init__(msg)
+        self.obj = obj
 
+class DataStageError(CommonLeavesError):
+    def __init__(self, requested_stage, valid_stages):
+        msg = f"'{requested_stage}' is not in the set of valid stages, must provide one of the following:\n     "
+        msg += str(valid_stages)
+        super().__init__(msg)
 
 
 
@@ -506,7 +507,7 @@ def seed_worker(worker_id):
     
     
     
-class TrainValSplitDataset(ImageFolder):
+class TrainValSplitDataset(LeavesDataset): #ImageFolder):
     """
     Use this class as a Factory for creating train and val splits from a single dataset, 
     returning 2 separate datasets with no shared references (as opposed to the native SubsetDataset)
@@ -535,6 +536,18 @@ class TrainValSplitDataset(ImageFolder):
                             'transform',
                             'transforms'
                             ]
+        
+    non_sample_params: List[str]= [
+                                   'class_to_idx',
+                                   'classes',
+                                   'extensions',
+                                   'loader',
+                                   'root',
+                                   'target_transform',
+                                   'transform',
+                                   'transforms'
+                                   ]
+        
     sample_params: List[str] = ['imgs',
                                 'samples',
                                 'targets']
@@ -566,6 +579,34 @@ class TrainValSplitDataset(ImageFolder):
         for key in cls.all_params:
             if hasattr(dataset, key):
                 setattr(new_dataset, key, getattr(dataset, key))
+                         
+        return new_dataset
+    
+    
+    @classmethod
+    def from_datasets(cls, *datasets: list, root: str='auto', remap_classes: Callable=None):
+        """
+        
+        """
+        skip_first_dataset = False
+        if root=='auto':
+            root = datasets[0].root
+            skip_first_dataset = True
+        new_dataset = cls(root=root)
+
+        for key in cls.non_sample_params:
+            if hasattr(datasets[0], key):
+                setattr(new_dataset, key, getattr(datasets[0], key))
+
+        for dataset in datasets:
+            if skip_first_dataset:
+                skip_first_dataset=False
+                continue
+            for key in cls.sample_params:
+                if hasattr(dataset, key):
+                    getattr(new_dataset, key).extend(getattr(dataset, key))
+#             new_dataset.samples.extend(dataset.samples)
+#             print(len(new_dataset.samples))
                          
         return new_dataset
     
@@ -687,6 +728,17 @@ def colorbar(mappable):
     
     
     
+    
+    
+def rgb_loader(path):
+    with open(path, 'rb') as f:
+        with Image.open(f) as img:
+            return img.convert('RGB')
+
+def l_loader(path):
+    with open(path, 'rb') as f:
+        with Image.open(f) as img:
+            return img.convert('L')
     
     
     

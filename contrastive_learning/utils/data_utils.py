@@ -18,7 +18,7 @@ from boltons.dictutils import OneToOne
 import os
 import pandas as pd
 from pathlib import Path
-import tensorflow as tf
+# import tensorflow as tf
 import wandb
 
 from contrastive_learning.utils.label_utils import ClassLabelEncoder, load_class_labels, save_class_labels

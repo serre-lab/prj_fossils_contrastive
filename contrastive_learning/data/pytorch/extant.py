@@ -13,12 +13,10 @@ from flash import Task
 from torch import nn, optim, Generator
 import torch
 import flash
-from flash.vision import ImageClassificationData, ImageClassifier
 from torchvision import models
 import pytorch_lightning as pl
 from typing import List, Callable, Dict, Union, Type, Optional
 from pytorch_lightning.callbacks import Callback
-from contrastive_learning.data.pytorch.flash.process import Preprocess, Postprocess
 
 # TODO (Jacob): Hardcode the mean & std for PNAS, Extant Leaves, Imagenet, etc.. for standardization across lab
 
@@ -99,7 +97,7 @@ class ExtantLightningDataModule(LeavesLightningDataModule):
                  seed: int=None,
                  debug: bool=False,
                  normalize: bool=True,
-                 image_size: int = None,
+                 image_size: int = 'auto',
                  channels: int=None,
                  dataset_dir: str=None,
                  return_paths: bool=False,
@@ -123,33 +121,33 @@ class ExtantLightningDataModule(LeavesLightningDataModule):
         
         
         
-    def get_dataset_split(self, split: str) -> LeavesDataset:
-        if split in ("train","val"):
-            train_dataset = self.DatasetConstructor(self.name,
-                                                    split="train",
-                                                    dataset_dir=self.dataset_dir,
-                                                    return_paths=self.return_paths)
-            if "val" in os.listdir(train_dataset.dataset_dir):
-                val_dataset = self.DatasetConstructor(self.name,
-                                                      split="val",
-                                                      dataset_dir=self.dataset_dir,
-                                                      return_paths=self.return_paths)
-            elif self.val_split:
-                train_dataset, val_dataset = TrainValSplitDataset.train_val_split(train_dataset,
-                                                                                  val_split=self.val_split,
-                                                                                  seed=self.seed)
-            if split == "train":
-                return train_dataset
-            else:
-                return val_dataset
-        elif split == "test":
-            test_dataset = self.DatasetConstructor(self.name,
-                                                   split="test",
-                                                   dataset_dir=self.dataset_dir,
-                                                   return_paths=self.return_paths)
-            return test_dataset
-        else:
-            raise Exception(f"'split' argument must be a string pertaining to one of the following: {self.available_splits}")
+#     def get_dataset_split(self, split: str) -> LeavesDataset:
+#         if split in ("train","val"):
+#             train_dataset = self.DatasetConstructor(self.name,
+#                                                     split="train",
+#                                                     dataset_dir=self.dataset_dir,
+#                                                     return_paths=self.return_paths)
+#             if "val" in os.listdir(train_dataset.dataset_dir):
+#                 val_dataset = self.DatasetConstructor(self.name,
+#                                                       split="val",
+#                                                       dataset_dir=self.dataset_dir,
+#                                                       return_paths=self.return_paths)
+#             elif self.val_split:
+#                 train_dataset, val_dataset = TrainValSplitDataset.train_val_split(train_dataset,
+#                                                                                   val_split=self.val_split,
+#                                                                                   seed=self.seed)
+#             if split == "train":
+#                 return train_dataset
+#             else:
+#                 return val_dataset
+#         elif split == "test":
+#             test_dataset = self.DatasetConstructor(self.name,
+#                                                    split="test",
+#                                                    dataset_dir=self.dataset_dir,
+#                                                    return_paths=self.return_paths)
+#             return test_dataset
+#         else:
+#             raise Exception(f"'split' argument must be a string pertaining to one of the following: {self.available_splits}")
             
             
         

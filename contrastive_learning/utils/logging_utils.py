@@ -38,6 +38,14 @@ from contrastive_learning.utils.data_utils import log_model_artifact
 from contrastive_learning.utils.plotting_utils import display_classification_report
 
 
+# def ensure_dir_exists(path: Union[str,Path]) -> None:
+#     """
+#     Ensures that the directory located at `path` is created if it doesn't already exist. Raises error if path either represents an existing file or does not contain a valid dir path.
+#     """
+#     assert not os.path.isfile(path)
+#     os.path.makedirs(path, exist_ok=True)
+#     assert os.path.isdir(path)
+
 
 def get_datetime_str(datetime_obj: datetime.datetime=None):
     '''Helper function to get formatted date and time as a str. Defaults to current time if none is passed.

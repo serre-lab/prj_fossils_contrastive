@@ -145,7 +145,7 @@ def get_labels_from_filepath(path: str, fix_catalog_number: bool = False) -> Dic
 # construct a table containing our dataset
 def register_raw_dataset(dataset            : Dataset,
                          artifact           : Artifact,
-                         subset             : str,
+                         subset             : str=None,
                          fix_catalog_number : bool=False,
                          label_type         : str="family") -> None:
     
@@ -160,7 +160,9 @@ def register_raw_dataset(dataset            : Dataset,
     for sample in tqdm(dataset.samples):
         path, label = sample        
         metadata = get_labels_from_filepath(path, fix_catalog_number=fix_catalog_number)
-        rel_path = f"{subset}/{metadata[label_type]}/{Path(path).name}"
+        rel_path = f"{metadata[label_type]}/{Path(path).name}"
+        if isinstance(subset, str):
+            rel_path = f'{subset}/' + rel_path
         
         artifact.add_file(path, rel_path)
         table.add_data(wandb.Image(path), label, *list(metadata.values()))
