@@ -15,7 +15,7 @@ Author: Jacob A Rose
 from torchvision.datasets import folder, vision, ImageFolder
 from torch.utils.data import Dataset, Subset, random_split, DataLoader
 from typing import Sequence
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union, Dict
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,6 +32,35 @@ import wandb
 __all__ = ['LeavesDataset', 'LeavesLightningDataModule', 'seed_worker', 'TrainValSplitDataset', 'SubsetImageDataset']
 
 
+
+
+def validate_dataset_dir(name: Optional[str]=None,
+                         dataset_dir: Optional[str]=None,
+                         available_datasets: Optional[Dict[str,str]] = None):
+    
+    if (name is None) and (dataset_dir is None):
+        raise Exception('Either `name` or `dataset_dir` must be provided.')
+    
+    available_datasets = available_datasets or {}
+    if os.path.exists(str(dataset_dir)):
+        self.dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
+        name = Path(dataset_dir).stem
+        if name not in available_datasets:
+            available_datasets[name] = dataset_dir
+    elif isinstance(name, str):
+        try:
+            assert name in available_datasets
+            dataset_dir = Path(available_datasets[name])
+        except AssertionError as e:
+            raise Exception(f"{name} is not in the set of available datasets. Please try one of the following: \n{available_datasets.keys()}")
+        
+    else:
+        print(f'Warning, no values for name or dataset_dir provided to constructor.')
+    
+    return name, dataset_dir, available_datasets
+
+
+available_datasets = {}
 
 class LeavesDataset(ImageFolder):
 
@@ -55,17 +84,18 @@ class LeavesDataset(ImageFolder):
 #             self.samples = list(data_df[['image', 'label']].itertuples())
         
 
-        if os.path.exists(str(dataset_dir)):
-            self.dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
-            name = Path(self.dataset_dir).stem
-            if name not in self.available_datasets:
-                self.available_datasets[name] = self.dataset_dir
-        elif isinstance(name, str):
-            assert name in self.available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{self.available_datasets.keys()}"
-            self.dataset_dir = Path(self.available_datasets[name])
-        else:
-            print(f'Warning, no values for name or dataset_dir provided to constructor.')
-            self.dataset_dir = dataset_dir
+#         if os.path.exists(str(dataset_dir)):
+#             self.dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
+#             name = Path(self.dataset_dir).stem
+#             if name not in self.available_datasets:
+#                 self.available_datasets[name] = self.dataset_dir
+#         elif isinstance(name, str):
+#             assert name in self.available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{self.available_datasets.keys()}"
+#             self.dataset_dir = Path(self.available_datasets[name])
+#         else:
+#             print(f'Warning, no values for name or dataset_dir provided to constructor.')
+#             self.dataset_dir = dataset_dir
+        self.name, self.dataset_dir, self.available_datasets = validate_dataset_dir(name, dataset_dir, self.available_datasets)
             
         self.name = name
         self.split = split
@@ -103,7 +133,20 @@ class LeavesDataset(ImageFolder):
         Subclasses must define this property
         Must return a dict mapping dataset key names to their absolute paths on disk.
         """
-        raise NotImplementedError
+        return available_datasets
+        
+    @available_datasets.setter
+    def available_datasets(self, new: Dict[str,str]):
+        """
+        Subclasses must define this property
+        Must return a dict mapping dataset key names to their absolute paths on disk.
+        """
+        try:
+            available_datasets.update(new)
+        except:
+            raise Exception
+
+        
         
     def __repr__(self):
         content = super().__repr__()
@@ -191,23 +234,25 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         """
         super().__init__()
         
-        if os.path.exists(str(dataset_dir)):
-            self.dataset_dir = Path(dataset_dir)
-            name = Path(self.dataset_dir).stem
-            if name not in self.available_datasets:
-                self.available_datasets[name] = self.dataset_dir
-        else:
-            assert name in self.available_datasets, \
-                f"""{name} is not in the set of available datasets. Please try one of the following: 
-                    \n{self.available_datasets.keys()}"""
-            self.dataset_dir = Path(self.available_datasets[name])
+#         if os.path.exists(str(dataset_dir)):
+#             self.dataset_dir = Path(dataset_dir)
+#             name = Path(self.dataset_dir).stem
+#             if name not in self.available_datasets:
+#                 self.available_datasets[name] = self.dataset_dir
+#         else:
+#             assert name in self.available_datasets, \
+#                 f"""{name} is not in the set of available datasets. Please try one of the following: 
+#                     \n{self.available_datasets.keys()}"""
+#             self.dataset_dir = Path(self.available_datasets[name])
+
+        self.name, self.dataset_dir, self.available_datasets = validate_dataset_dir(name, dataset_dir, self.available_datasets)
         
         
         if val_split is not None:
             assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be either None, or a float in the range [0, 1]."
         self.val_split = val_split
         
-        self.name = name or default_name
+#         self.name = name or default_name
     
         if image_size == 'auto':
             try:
@@ -405,7 +450,8 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                                        transforms.RandomCrop(self.image_size),
 #                                        ImageOps.invert,
                                        transforms.ToTensor(),
-                                       transforms.Normalize(mean=self.mean, std=self.std)])
+                                       self.normalize_transform()])
+#                                        transforms.Normalize(mean=self.mean, std=self.std)])
         return self.default_eval_transforms(normalize=normalize)
 
     def default_eval_transforms(self, normalize: bool=True):
@@ -415,7 +461,8 @@ class LeavesLightningDataModule(pl.LightningDataModule):
 #                           ImageOps.invert,
                           transforms.ToTensor()]
         if normalize:
-            transform_list.append(transforms.Normalize(mean=self.mean, std=self.std))
+            transform_list.append(self.normalize_transform())
+            #transforms.Normalize(mean=self.mean, std=self.std))
             
         return transforms.Compose(transform_list)
 
