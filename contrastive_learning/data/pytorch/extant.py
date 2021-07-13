@@ -96,7 +96,8 @@ class ExtantLightningDataModule(LeavesLightningDataModule):
                  return_paths: bool=False,
                  predict_on_split: str="val",
                  **kwargs):
-        
+        print(f'name: {name}')
+        print(f'dataset_dir:{dataset_dir}')
         super().__init__(name=name,
                          batch_size=batch_size,
                          val_split=val_split,

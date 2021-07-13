@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 
 from contrastive_learning.data.pytorch.pnas import PNASLightningDataModule
 from contrastive_learning.data.pytorch.extant import ExtantLightningDataModule
+from contrastive_learning.data.pytorch.fossil import FossilLightningDataModule
 from contrastive_learning.data.pytorch.common import LeavesLightningDataModule
 from contrastive_learning.data.pytorch.utils.file_utils import ensure_dir_exists
 __all__ = ["get_datamodule", "fetch_datamodule_from_dataset_artifact"]
@@ -26,6 +27,8 @@ def build_datamodule(**kwargs):
         datamodule = ExtantLightningDataModule(**kwargs)
     elif 'PNAS' in kwargs.get('name',''):
         datamodule = PNASLightningDataModule(**kwargs)
+    elif 'Fossil' in kwargs.get('name',''):
+        datamodule = FossilLightningDataModule(**kwargs)
     return datamodule
 
 ########################################

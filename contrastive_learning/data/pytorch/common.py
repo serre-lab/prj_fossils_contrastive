@@ -24,13 +24,18 @@ import pandas as pd
 import torch
 import torchvision
 from torchvision import transforms
+from torchvision.transforms import functional as F
 import pytorch_lightning as pl
 from pathlib import Path
 from PIL import ImageOps
 import wandb
+import matplotlib.pyplot as plt
+from PIL.Image import Image
+import textwrap
+import logging
 
-__all__ = ['LeavesDataset', 'LeavesLightningDataModule', 'seed_worker', 'TrainValSplitDataset', 'SubsetImageDataset']
-
+__all__ = ['LeavesDataset', 'LeavesLightningDataModule', 'seed_worker', 'TrainValSplitDataset', 'SubsetImageDataset', 'plot_class_distributions',
+'plot_trainvaltest_splits']
 
 
 
@@ -43,7 +48,7 @@ def validate_dataset_dir(name: Optional[str]=None,
     
     available_datasets = available_datasets or {}
     if os.path.exists(str(dataset_dir)):
-        self.dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
+        dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
         name = Path(dataset_dir).stem
         if name not in available_datasets:
             available_datasets[name] = dataset_dir
@@ -71,39 +76,48 @@ class LeavesDataset(ImageFolder):
             name: str=None,
             split: str="train",
             dataset_dir: Optional[str]=None,
-            return_paths: bool=False,
+            return_items: List[str] = ["image","target","path"],
+            image_return_type: str = "tensor",
+            class2idx: Optional[Dict[str,int]]=None,
             data_df: pd.DataFrame=None,
             **kwargs: Any
             ) -> None:
         self.imgs, self.samples, self.targets = [], [], []
+        self.name, self.dataset_dir = name, Path(self.available_datasets[name])
+#         self.name, self.dataset_dir, _ = validate_dataset_dir(name, dataset_dir, self.available_datasets)
 
-#         assert split in self.splits_on_disk
-        
-#         if isinstance(data_df, pd.DataFrame):
-#             self.wide_samples = data_df
-#             self.samples = list(data_df[['image', 'label']].itertuples())
-        
-
-#         if os.path.exists(str(dataset_dir)):
-#             self.dataset_dir = Path(dataset_dir) #Path(kwargs['dataset_dir'])
-#             name = Path(self.dataset_dir).stem
-#             if name not in self.available_datasets:
-#                 self.available_datasets[name] = self.dataset_dir
-#         elif isinstance(name, str):
-#             assert name in self.available_datasets, f"{name} is not in the set of available datasets. Please try one of the following: \n{self.available_datasets.keys()}"
-#             self.dataset_dir = Path(self.available_datasets[name])
-#         else:
-#             print(f'Warning, no values for name or dataset_dir provided to constructor.')
-#             self.dataset_dir = dataset_dir
-        self.name, self.dataset_dir, self.available_datasets = validate_dataset_dir(name, dataset_dir, self.available_datasets)
-            
-        self.name = name
+#         self.name = name
         self.split = split
         if isinstance(self.dataset_dir, (str, Path)):
             self.split_dir = self.dataset_dir / self.split
+            logging.info(f'self.split_dir={self.split_dir}')
             super().__init__(root=self.split_dir,
                              **kwargs)
-        self.return_paths = return_paths
+            logging.info(f'split={split}, num_samples={len(self)}')
+            logging.info(f'num_classes={len(self.classes)}')
+            
+
+
+        if (not hasattr(self,'class2idx')) and class2idx:
+            self.update_class2idx()
+            
+        self.return_items = return_items
+        self.image_return_type = image_return_type
+            
+#         self.return_paths = return_paths
+        
+        
+    def update_class2idx(self,
+                         class2idx: Optional[Dict[str,int]] = None):
+        
+        if isinstance(class2idx, dict):
+            self.classes = sorted(class2idx.keys())
+            self.class2idx = class2idx
+        else:
+            self.classes = sorted(set(self.targets))
+            self.class2idx = {name:idx for idx, name in enumerate(self.classes)}
+
+        
 
     @classmethod
     def from_wandb_table(cls, table: wandb.data_types.Table) -> "LeavesDataset":
@@ -114,14 +128,27 @@ class LeavesDataset(ImageFolder):
         
         
         
-    @property
-    def return_paths(self):
-        return self._return_paths
+#     @property
+#     def return_paths(self):
+#         return self._return_paths
     
-    @return_paths.setter
-    def return_paths(self, return_paths: bool):
-        self._return_paths = return_paths
-        if return_paths:
+#     @return_paths.setter
+#     def return_paths(self, return_paths: bool):
+#         self._return_paths = return_paths
+#         if return_paths:
+#             self.get_item = lambda sample: (sample[0], sample[1], sample[2]) # (img, label, path)
+#         else:
+#             self.get_item = lambda sample: (sample[0], sample[1]) # (img, label)
+
+
+    @property
+    def return_items(self):
+        return self._return_items
+    
+    @return_items.setter
+    def return_items(self, return_items: bool):
+        self._return_items = return_items
+        if return_items:
             self.get_item = lambda sample: (sample[0], sample[1], sample[2]) # (img, label, path)
         else:
             self.get_item = lambda sample: (sample[0], sample[1]) # (img, label)
@@ -164,7 +191,7 @@ class LeavesDataset(ImageFolder):
         Returns:
             tuple: (sample, target) where target is class_index of the target class.
         """
-        path, target = self.samples[index]
+        path, target = self.samples[index][:2]
         img = self.loader(path)
         if self.transform is not None:
             img = self.transform(img)
@@ -173,7 +200,175 @@ class LeavesDataset(ImageFolder):
 
         return self.get_item((img, target, path))
     
+    
+    ############################
+    
 
+    def filter_samples_by_threshold(self,
+                                    threshold: int=1,
+                                    update_class2idx: bool=True,
+                                    x_col = 'path',
+                                    y_col = "family",
+                                    in_place: bool=False) -> "FossilDataset":
+        
+        
+        counts = collections.Counter(self.targets)
+        if min(counts.values()) >= threshold:
+            # Only filter if any classes are still below the threshold
+            if in_place:
+                return None
+            else:
+                return self
+        
+        if update_class2idx:
+            class2idx=None
+        else:
+            class2idx=self.class2idx
+
+
+        df = pd.DataFrame(self.samples)
+        df = df.rename(columns={0:"path",
+                                1:"family",
+                                2:"genus",
+                                3:"species",
+                                4:"collection",
+                                5:"catalog_number"})#.value_counts()
+
+        df = filter_df_by_threshold(df=df,
+                                    threshold=threshold,
+                                    y_col=y_col)
+
+        files = df[x_col].to_list()
+        
+        if in_place:
+            self.__init__(files=files,
+                          name=self.name,
+                          return_items=self.return_items,
+                          image_return_type=self.image_return_type,
+                          class2idx=class2idx,
+                          threshold=threshold)
+            return None
+
+        return type(self)(files=files,
+                             name=self.name,
+                             return_items=self.return_items,
+                             image_return_type=self.image_return_type,
+                             class2idx=class2idx)
+
+    def select_from_indices(self,
+                            indices: Sequence,
+                            update_class2idx: bool=False,
+                            x_col = 'path',
+                            y_col = "family",
+                            in_place: bool=False) -> Optional["FossilDataset"]:
+        """
+        Helper method to create a new FossilDataset containing only samples contained in `indices`
+        Useful for producing train/val/test splits
+
+        """
+        if update_class2idx:
+            class2idx=None
+        else:
+            class2idx=self.class2idx
+
+
+        df = pd.DataFrame(self.samples)
+        df = df.rename(columns={0:"path",
+                                1:"family",
+                                2:"genus",
+                                3:"species",
+                                4:"collection",
+                                5:"catalog_number"})#.value_counts()
+
+        df = df.iloc[indices,:]
+        
+        files = df[x_col].to_list()
+        
+        if in_place:
+            self.__init__(files=files,
+                          name=self.name,
+                          return_items=self.return_items,
+                          image_return_type=self.image_return_type,
+                          class2idx=class2idx)
+            return None
+
+        return FossilDataset(files=files,
+                             name=self.name,
+                             return_items=self.return_items,
+                             image_return_type=self.image_return_type,
+                             class2idx=class2idx)    
+    
+    @classmethod
+    def create_trainvaltest_splits(cls,
+                                   dataset,
+                                   test_split: float=0.3,
+                                   val_train_split: float=0.2,
+                                   shuffle: bool=True,
+                                   seed: int=3654,
+                                   plot_distributions: bool=False) -> Tuple["FossilDataset"]:
+
+        dataset_size = len(dataset)
+        indices = np.arange(dataset_size)
+        samples = np.array(dataset.samples)
+        targets = np.array(dataset.targets)
+
+        train_val_idx, test_idx = train_test_split(indices,
+                                                   test_size=test_split,
+                                                   random_state=seed,
+                                                   shuffle=shuffle,
+                                                   stratify=targets)
+
+        train_val_targets = targets[train_val_idx]
+        trainval_indices = np.arange(len(train_val_targets))
+        train_idx, val_idx = train_test_split(trainval_indices,
+                                              test_size=val_train_split,
+                                              random_state=seed,
+                                              shuffle=shuffle,
+                                              stratify=train_val_targets)
+
+        train_data = dataset.select_from_indices(indices=train_idx,
+                                                 update_class2idx=False,
+                                                 x_col = 'path',
+                                                 y_col = "family")
+
+        val_data = dataset.select_from_indices(indices=val_idx,
+                                               update_class2idx=False,
+                                               x_col = 'path',
+                                               y_col = "family")
+
+        test_data = dataset.select_from_indices(indices=test_idx,
+                                                update_class2idx=False,
+                                                x_col = 'path',
+                                                y_col = "family")
+        
+        if plot_distributions:
+            cls.plot_trainvaltest_splits(train_data,
+                                         val_data,
+                                         test_data)
+
+        return train_data, val_data, test_data
+    
+    @staticmethod
+    def plot_trainvaltest_splits(train_data,
+                                 val_data,
+                                 test_data):
+    
+        fig, ax = plot_trainvaltest_splits(train_data,
+                                           val_data,
+                                           test_data)
+        return fig, ax
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 #######################################################
 
 
@@ -188,19 +383,23 @@ class LeavesLightningDataModule(pl.LightningDataModule):
     mean = [0.5, 0.5, 0.5]
     std = [1.0, 1.0, 1.0]
     
+    totensor: Callable = transforms.ToTensor()
+    
     def __init__(self,
                  name: str=None,
                  batch_size: int=32,
-                 val_split: float=0.2,
+                 val_split: float=0.0,
+                 test_split: float=0.0,
+                 normalize: bool=True,
+                 image_size: Union[int,str] = None,
+                 grayscale: bool = True,
+                 channels: int=None,
+                 dataset_dir: Optional[str]=None,
+                 return_paths: bool=False,
                  num_workers=0,
                  pin_memory: bool=False,
                  seed: int=None,
                  debug: bool=False,
-                 normalize: bool=True,
-                 image_size: Union[int,str] = None,
-                 channels: int=None,
-                 dataset_dir: Optional[str]=None,
-                 return_paths: bool=False,
                  predict_on_split: str="val",
                  **kwargs
                  ):
@@ -216,7 +415,19 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                 Subclasses should define a default name.
             batch_size (int, optional): Defaults to 32.
             val_split (float, optional): Defaults to 0.2.
-                Must be within [0.0, 1.0]
+                Must be within [0.0, 1.0]. If omitted, looks for val/ subdir on disk.
+            test_split (float, optional): Defaults to 0.0.
+                Must be within [0.0, 1.0]. If omitted, looks for test/ subdir on disk.
+            normalize (bool, optional): Defaults to True.
+                If True, applies mean and std normalization to images at the end of all sequences of transforms. Base class has default values of mean = [0.5, 0.5, 0.5] and std = [1.0, 1.0, 1.0], which results in normalization becoming an identity transform. Subclasses should provide custom overrides for these values. E.g. imagenet  for example
+            image_size (Union[int,str], optional): Defaults to 224 if None.
+                if 'auto', extract image_size from dataset name (e.g. "Exant_Leaves_family_10_1024 -> image_size=1024")
+            grayscale (bool, optional): Defaults to True.
+                
+            channels (int, optional): Defaults to 3 if None.
+                Options are either 1 or 3 channels. No-op if grayscale=False.
+            return_paths (bool, optional): Defaults to False.
+                If True, internal datasets return tuples of length 3 containing (img, label, path). If False, return tuples of length 2 containing (img, label).
             num_workers (int, optional): Defaults to 0.
             pin_memory (bool, optional): Defaults to False.
             seed (int, optional): Defaults to None.
@@ -224,56 +435,45 @@ class LeavesLightningDataModule(pl.LightningDataModule):
             debug (bool, optional): Defaults to False.
                 Set to True in order to turn off (1) shuffling, and (2) image augmentations.
                 Purpose is to allow removing as much randomness as possible during runtime. Augmentations are removed by applying the eval_transforms to all subsets.
-            normalize (bool, optional): Defaults to True.
-                If True, applies mean and std normalization to images at the end of all sequences of transforms. Base class has default values of mean = [0.5, 0.5, 0.5] and std = [1.0, 1.0, 1.0], which results in normalization becoming an identity transform. Subclasses should provide custom overrides for these values. E.g. imagenet  for example
-            image_size (Union[int,str], optional): Defaults to 224 if None.
-                if 'auto', extract image_size from dataset name (e.g. "Exant_Leaves_family_10_1024 -> image_size=1024")
-            channels (int, optional): Defaults to 3 if None.
-            return_paths (bool, optional): Defaults to False.
-                If True, internal datasets return tuples of length 3 containing (img, label, path). If False, return tuples of length 2 containing (img, label).
+
         """
         super().__init__()
-        
-#         if os.path.exists(str(dataset_dir)):
-#             self.dataset_dir = Path(dataset_dir)
-#             name = Path(self.dataset_dir).stem
-#             if name not in self.available_datasets:
-#                 self.available_datasets[name] = self.dataset_dir
-#         else:
-#             assert name in self.available_datasets, \
-#                 f"""{name} is not in the set of available datasets. Please try one of the following: 
-#                     \n{self.available_datasets.keys()}"""
-#             self.dataset_dir = Path(self.available_datasets[name])
 
-        self.name, self.dataset_dir, self.available_datasets = validate_dataset_dir(name, dataset_dir, self.available_datasets)
+#         self.name, self.dataset_dir, available_datasets = validate_dataset_dir(name, dataset_dir, self.available_datasets)
+        self.name = name
+        self.dataset_dir = dataset_dir
+        if name in self.available_datasets:
+            self.dataset_dir = self.available_datasets[name]
+            logging.info(f'self.dataset_dir={self.dataset_dir}')
         
-        
-        if val_split is not None:
+        if val_split: # is not None:
             assert ((val_split >= 0) and (val_split <= 1)), "[!] val_split should be either None, or a float in the range [0, 1]."
         self.val_split = val_split
+        if test_split: # is not None:
+            assert ((test_split >= 0) and (test_split <= 1)), "[!] test_split should be either None, or a float in the range [0, 1]."
+        self.test_split = test_split
         
-#         self.name = name or default_name
-    
         if image_size == 'auto':
             try:
                 image_size = int(self.name.split('_')[-1])
             except ValueError:
                 image_size = self.image_size
     
-        
         self.batch_size = batch_size
+        self.normalize = normalize
+        self.image_size = image_size or self.image_size
+        self.grayscale = grayscale
+        self.channels = channels or self.channels
+        self.return_paths = return_paths
+        self.predict_on_split = predict_on_split
+        
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        self.val_split = val_split
         self.seed = seed
         self.debug = debug
         self.augment = not debug
         self.shuffle = not debug
-        self.normalize = normalize
-        self.image_size = image_size or self.image_size
-        self.channels = channels or self.channels
-        self.return_paths = return_paths
-        self.predict_on_split = predict_on_split
+
         
         self._is_fit_setup=False
         self._is_test_setup=False
@@ -285,16 +485,20 @@ class LeavesLightningDataModule(pl.LightningDataModule):
               eval_transform: Optional[Callable] = None,
               target_transform: Optional[Callable] = None
               ):
+        logging.info(f"stage={stage}")
         if stage == 'fit' or stage is None:
+            logging.info(f"Calling datamodule.setup({stage})")
             self.init_dataset_stage(stage='fit',
                                     train_transform=train_transform,
                                     eval_transform=eval_transform)
             self._is_fit_setup=True
         elif stage == 'test': # or stage is None:
+            logging.info(f"Calling datamodule.setup({stage})")
             self.init_dataset_stage(stage='test',
                                     eval_transform=eval_transform)
             self._is_test_setup=True
         elif stage == 'predict': # or stage is None:
+            logging.info(f"Calling datamodule.setup({stage})")
             self.init_dataset_stage(stage='predict',
                                     eval_transform=eval_transform)
         else:
@@ -306,21 +510,29 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                            stage: str='fit',
                            train_transform: Optional[Callable] = None,
                            eval_transform: Optional[Callable] = None):
-        
+    
         
         self.train_transform = train_transform or self.default_train_transforms(augment=self.augment,
-                                                                                normalize=self.normalize)
-        self.eval_transform = eval_transform or self.default_eval_transforms(normalize=self.normalize)
+                                                                                normalize=self.normalize,
+                                                                                grayscale=self.grayscale,
+                                                                                channels=self.channels)
+        self.eval_transform = eval_transform or self.default_eval_transforms(normalize=self.normalize,
+                                                                             resize_PIL=True,
+                                                                             grayscale=self.grayscale,
+                                                                             channels=self.channels)
         
         if stage == 'fit' or stage is None:
+            logging.info(f'stage={stage}')
             self.train_dataset = self.get_dataset_split(split='train')
             self.val_dataset = self.get_dataset_split(split='val')
             self.classes = self.train_dataset.classes
+            self.num_classes = len(self.classes)
             
+            logging.info(f'stage={stage}, num_classes={self.num_classes}')
             self.train_dataset.transform = self.train_transform
             self.val_dataset.transform = self.eval_transform
             
-        elif stage == 'test': # or stage is None:
+        elif stage == 'test' or stage is None:
             self.test_dataset = self.get_dataset_split(split='test')
             self.test_dataset.transform = self.eval_transform
         elif stage == 'predict': # or stage is None:
@@ -337,7 +549,9 @@ class LeavesLightningDataModule(pl.LightningDataModule):
 #             raise  ValueError(f"stage value ({stage}) is not in set of valid stages, must provide 'fit', 'test', or None.")
             
     def get_dataset_split(self, split: str) -> LeavesDataset:        
-        
+        """
+        TODO: Move this splitting logic to the Dataset
+        """
         if split in ("train","val"):
             train_dataset = self.DatasetConstructor(self.name,
                                                     split="train",
@@ -349,9 +563,12 @@ class LeavesLightningDataModule(pl.LightningDataModule):
                                                       dataset_dir=self.dataset_dir,
                                                       return_paths=self.return_paths)
             elif self.val_split:
+                logging.info(f'self.val_split={self.val_split}')
                 train_dataset, val_dataset = TrainValSplitDataset.train_val_split(train_dataset,
                                                                                   val_split=self.val_split,
                                                                                   seed=self.seed)
+                print('finished train_dataset, val_dataset = TrainValSplitDataset.train_val_split')
+                logging.info(f'len(train_dataset)={len(train_dataset)}, len(val_dataset)={len(val_dataset)}')
             else:
                 print(f'[ERROR] Must provide either a `val` subdir in self.dataset_dir = {self.dataset_dir}, or a non-zero value for `val_split`.')
                 raise
@@ -380,16 +597,6 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         else:
             raise Exception(f"'split' argument must be a string pertaining to one of the following: {self.available_splits}")
 
-
-        
-    @property
-    def available_datasets(self):
-        """
-        Subclasses must define this property
-        Each custom dataset must have its own custom subclass of LeavesDataset and LeavesLightningDataModule.
-        Must return a dict mapping dataset key names to their absolute paths on disk.
-        """
-        raise NotImplementedError
 
         
     def get_dataset(self, stage: str='train'):
@@ -438,41 +645,81 @@ class LeavesLightningDataModule(pl.LightningDataModule):
 
 
     @property
-    def normalize_transform(self):
+    def normalize_transform(self) -> Callable:
         return transforms.Normalize(mean=self.mean, 
                                     std=self.std)
-
-    def default_train_transforms(self, normalize: bool=True, augment:bool=True):
+    
+#     def resized_crop(self, img: torch.Tensor) -> Callable: #torch.Tensor:
+#         crop_size = min([self.image_size,
+#                     self.image_size+self.image_buffer_size])
+#         return transforms.Lambda(F.resized_crop(img,
+#                                  top=0.0,
+#                                  left=0.0,
+#                                  height = crop_size,
+#                                  width = crop_size,
+#                                  size = self.image_size,
+#                                  interpolation = Image.LANCZOS))
+        
+    def default_train_transforms(self,
+                                 normalize: bool=True, 
+                                 augment:bool=True,
+                                 grayscale: bool=True,
+                                 channels: Optional[int]=3):
         """Subclasses can override this or user can provide custom transforms at runtime"""
+        transform_list = []
+#         transform_jit_list = []        
         if augment:
-            return transforms.Compose([transforms.Resize(self.image_size+self.image_buffer_size),
-                                       transforms.RandomHorizontalFlip(p=0.5),
-                                       transforms.RandomCrop(self.image_size),
-#                                        ImageOps.invert,
-                                       transforms.ToTensor(),
-                                       self.normalize_transform()])
-#                                        transforms.Normalize(mean=self.mean, std=self.std)])
-        return self.default_eval_transforms(normalize=normalize)
-
-    def default_eval_transforms(self, normalize: bool=True):
-        """Subclasses can override this or user can provide custom transforms at runtime"""
-        transform_list = [transforms.Resize(self.image_size+self.image_buffer_size),
-                          transforms.CenterCrop(self.image_size),
-#                           ImageOps.invert,
-                          transforms.ToTensor()]
-        if normalize:
-            transform_list.append(self.normalize_transform())
-            #transforms.Normalize(mean=self.mean, std=self.std))
+            transform_list.extend([transforms.RandomResizedCrop(size=self.image_size,
+                                                                scale=(0.25, 1.2),
+                                                                ratio=(0.7, 1.3),
+                                                                interpolation=2),
+                                   self.totensor
+                                 ])
+        return self.default_eval_transforms(normalize=normalize,
+                                            resize_PIL=False,
+                                            grayscale=grayscale,
+                                            channels=channels,
+                                            transform_list=transform_list)
+#         if normalize:
+#             transform_jit_list.append(self.normalize_transform)
             
-        return transforms.Compose(transform_list)
+#         if grayscale:
+#             transform_jit_list.append(transforms.Grayscale(num_output_channels=channels))
+            
+#         return transforms.Compose([*transform_list, *transform_jit_list])
+
+    
+    def default_eval_transforms(self, 
+                                normalize: bool=True,
+                                resize_PIL: bool=True,
+                                grayscale: bool=True,
+                                channels: Optional[int]=3,
+                                transform_list: Optional[List[Callable]]=None):
+        """Subclasses can override this or user can provide custom transforms at runtime"""
+        transform_list = transform_list or []
+        transform_jit_list = []
+        
+        if resize_PIL:
+            # if True, assumes input images are PIL.Images (But need to check if this even matters.)
+            # if False, expects input images to already be torch.Tensors
+            transform_list.extend([transforms.Resize(self.image_size+self.image_buffer_size),
+                                   transforms.CenterCrop(self.image_size),
+                                   self.totensor])
+        if normalize:
+            transform_jit_list.append(self.normalize_transform)
+            
+        if grayscale:
+            transform_jit_list.append(transforms.Grayscale(num_output_channels=channels))
+            
+        return transforms.Compose([*transform_list, *transform_jit_list])
 
     
     def get_batch(self, stage: str='train', batch_idx: int=0):
         """Useful utility function for selecting a specific batch by its index and stage."""
         data = self.get_dataloader(stage)
-        for i, (x, y) in enumerate(iter(data)):
+        for i, batch in enumerate(iter(data)):
             if i == batch_idx:
-                return x, y
+                return batch
         
     
     def show_batch(self, stage: str='train', batch_idx: int=0, cmap: str='cividis', grayscale=True, titlesize=30):
@@ -482,7 +729,8 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         Good mild grayscale cmaps: ['magma', 'cividis']
         Good mild grayscale cmaps: ['plasma', 'viridis']
         """
-        x, y = self.get_batch(stage=stage, batch_idx=batch_idx)
+        batch = self.get_batch(stage=stage, batch_idx=batch_idx)
+        x, y = batch[:2]
         batch_size = x.shape[0]
         
         fig, ax = plt.subplots(1,1, figsize=(20,20))
@@ -516,6 +764,26 @@ class LeavesLightningDataModule(pl.LightningDataModule):
         content += f'seed: {self.seed}'
         return content
 
+    
+    @property
+    def available_datasets(self):
+        """
+        Subclasses must define this property
+        Each custom dataset must have its own custom subclass of LeavesDataset and LeavesLightningDataModule.
+        Must return a dict mapping dataset key names to their absolute paths on disk.
+        """
+        return available_datasets
+        
+    @available_datasets.setter
+    def available_datasets(self, new: Dict[str,str]):
+        """
+        Subclasses must define this property
+        Must return a dict mapping dataset key names to their absolute paths on disk.
+        """
+        try:
+            available_datasets.update(new)
+        except:
+            raise Exception
 
 #######################################################
 
@@ -537,10 +805,45 @@ class DataStageError(CommonLeavesError):
         super().__init__(msg)
 
 
+#######################################################
 
 
 
+def display_images(
+                   images: List[Image],
+                   labels: Optional[List[str]]=None,
+                   max_images: int=32,
+                   columns: int=5,
+                   width: int=20,
+                   height: int=12,
+                   label_wrap_length: int=50,
+                   label_font_size: int="medium") -> None:
 
+    if len(images) > max_images:
+        print(f"Showing {max_images} images of {len(images)}:")
+        images=images[0:max_images]
+
+    rows = int(len(images)/columns)
+#     height = max(height, rows * height)
+    plt.subplots(rows, columns, figsize=(width, height), sharex=True, sharey=True)
+    for i, image in enumerate(images):
+
+        plt.subplot(rows + 1, columns, i + 1)
+        plt.imshow(image)
+        title=None
+        if isinstance(labels, list):
+            title = labels[i]
+        elif hasattr(image, 'filename'):
+            title=image.filename
+            
+        if title:
+#             if title.endswith("/"): title = title[:-1]
+            title=Path(title).stem
+            title=textwrap.wrap(title, label_wrap_length)
+            title="\n".join(title)
+            plt.title(title, fontsize=label_font_size); 
+
+    plt.subplots_adjust(left=None, bottom=0.1, right=None, top=0.85, wspace=0.05, hspace=0.1)
 
 
 
@@ -552,8 +855,115 @@ def seed_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
     
+
+#######################################################
+# TODO: Move the following elsewhere
+
+def filter_df_by_threshold(df: pd.DataFrame,
+                           threshold: int,
+                           y_col: str='family'):
+    """
+    Filter rare classes from dataset in a pd.DataFrame
     
+    Input:
+        df (pd.DataFrame):
+            Must contain at least 1 column with name given by `y_col`
+        threshold (int):
+            Exclude any rows from df that contain a `y_col` value with fewer than `threshold` members in all of df.
+        y_col (str): default="family"
+            The column in df to look for rare classes to exclude.
+    Output:
+        (pd.DataFrame):
+            Returns a dataframe with the same number of columns as df, and an equal or lower number of rows.
+    """
+    return df.groupby(y_col).filter(lambda x: len(x) >= threshold)
+
+
+
+
+import collections
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_context(context='talk', font_scale=0.8)
+# sns.set_style("whitegrid")
+
+def plot_class_distributions(targets: List[Any], 
+                             sort: Union[bool,Sequence]=True,
+                             ax=None,
+                             xticklabels: bool=True):
+    """
+    Example:
+        counts = plot_class_distributions(targets=data.targets, sort=True)
+    """
+    counts = collections.Counter(targets)
+    if hasattr(sort, "__len__"):
+        counts = {k: counts[k] for k in sort}
+    elif sort is True:
+        counts = dict(sorted(counts.items(), key = lambda x:x[1], reverse=True))
+
+    keys = list(counts.keys())
+    values = list(counts.values())
+
+    if ax is None:
+        plt.figure(figsize=(16,12))
+    ax = sns.histplot(x=keys, weights=values, discrete=True, ax=ax)
+    plt.sca(ax)
+    if xticklabels:
+        plt.xticks(
+            rotation=45, 
+            horizontalalignment='right',
+            fontweight='light',
+            fontsize='medium'
+        )
+    else:
+        ax.set_xticklabels([])
     
+    return counts
+
+
+def plot_trainvaltest_splits(train_data,
+                             val_data,
+                             test_data):
+    """
+    Create 3 vertically-stacked count plots of train, val, and test dataset class label distributions
+    """
+    fig, ax = plt.subplots(3, 1, figsize=(16,8*3))
+
+    train_counts = plot_class_distributions(targets=train_data.targets, sort=True, ax = ax[0], xticklabels=False)
+    plt.gca().set_title(f"train (n={len(train_data)})", fontsize='large')
+    sort_classes = train_counts.keys()
+
+    val_counts = plot_class_distributions(targets=val_data.targets, ax = ax[1], sort=sort_classes, xticklabels=False)
+    plt.gca().set_title(f"val (n={len(val_data)})", fontsize='large')
+    test_counts = plot_class_distributions(targets=test_data.targets, ax = ax[2], sort=sort_classes)
+    plt.gca().set_title(f"test (n={len(test_data)})", fontsize='large')
+
+    num_samples = len(train_data) + len(val_data) + len(test_data)
+    
+    plt.suptitle(f"Train-Val-Test_splits (total={num_samples})", fontsize='x-large')
+
+#     plt.suptitle(f"Train-Val-Test_splits (total={len(data)})", fontsize='x-large')
+
+    plt.subplots_adjust(bottom=0.1, top=0.95, wspace=None, hspace=0.07)
+    
+    return fig, ax
+
+
+
+#######################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
 class TrainValSplitDataset(LeavesDataset): #ImageFolder):
     """
     Use this class as a Factory for creating train and val splits from a single dataset, 
@@ -690,11 +1100,6 @@ class TrainValSplitDataset(LeavesDataset): #ImageFolder):
 #                 ["{}{}".format(" " * len(head), line) for line in lines[1:]])
 
 
-
-
-
-    
-    
     
 ###############################
 ###############################
@@ -744,18 +1149,8 @@ class SubsetImageDataset(folder.DatasetFolder):
             transforms = vision.StandardTransform(transform, target_transform)
         self.transforms = transforms
         
-
-#     def __getitem__(self, idx):
-#         if torch.is_tensor(idx):
-#             idx = idx.tolist()
-#         image, target = self.samples[idx]
-#         return image, target
-
     def __len__(self):
         return len(self.targets)
-    
-    
-    
     
     
     
@@ -773,10 +1168,6 @@ def colorbar(mappable):
     return cbar
     
     
-    
-    
-    
-    
 def rgb_loader(path):
     with open(path, 'rb') as f:
         with Image.open(f) as img:
@@ -791,58 +1182,3 @@ def l_loader(path):
     
 #######################################
 #######################################
-
-
-    
-    
-
-
-# class SubsetImageDataset(folder.ImageFolder):
-#     """
-#     Custom class for creating a Subset of a Dataset while retaining the built-in methods/attributes/properties of Datasets.
-    
-#     User provides a full dataset to be split, along with indices for inclusion in this subset.
-
-#     Arguments:
-#         dataset (Dataset): The whole Dataset
-#         indices (sequence): Indices in the whole set selected for subset
-#     """
-#     def __init__(self,
-# #         super().__init__(
-# #                          root: str,
-# #                          transform: Optional[Callable] = None,
-# #                          target_transform: Optional[Callable] = None,
-# #                          loader: Callable[[str], Any] = default_loader,
-# #                          is_valid_file: Optional[Callable[[str], bool]] = None,
-# #                         ):
-#                  dataset: Dataset,
-#                  indices: Sequence
-#                 ):
-#         super(DatasetFolder, self).__init__(root, transform=transform,
-#                                             target_transform=target_transform)
-#         classes, class_to_idx = self._find_classes(self.root)
-#         samples = self.make_dataset(self.root, class_to_idx, extensions, is_valid_file)
-
-#         self.loader = loader
-#         self.extensions = extensions
-
-#         self.classes = classes
-#         self.class_to_idx = class_to_idx
-#         self.samples = samples
-#         self.targets = [s[1] for s in samples]
-
-        
-        
-# #         self.dataset = Subset(dataset, indices)
-#         self.dataset = dataset[indices]
-#         self.samples = self.dataset.samples
-#         self.targets = self.dataset.targets
-
-#     def __getitem__(self, idx):
-#         if torch.is_tensor(idx):
-#             idx = idx.tolist()
-#         image, target = self.samples[idx]
-#         return image, target
-
-#     def __len__(self):
-#         return len(self.targets)
